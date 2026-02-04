@@ -1,0 +1,158 @@
+# Docker Compose — Full infrastructure for the web scraper
+# Includes Redis Stack (RedisBloom), Sentinel HA, Prometheus, Grafana, Loki, Jaeger
+version: "3.9"
+
+services:
+  # === Redis Stack with RedisBloom ===
+  redis:
+    image: redis/redis-stack:latest
+    container_name: scraper-redis
+    ports:
+      - "6379:6379"
+      - "8001:8001" # RedisInsight UI
+    volumes:
+      - redis-data:/data
+      - ../config/redis.conf:/usr/local/etc/redis/redis.conf
+    command: >
+      redis-server /usr/local/etc/redis/redis.conf --loadmodule /opt/redis-stack/lib/redisbloom.so --loadmodule /opt/redis-stack/lib/rejson.so
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - scraper-net
+
+  # === Redis Sentinel (3 nodes for HA) ===
+  sentinel-1:
+    image: redis:7-alpine
+    container_name: scraper-sentinel-1
+    ports:
+      - "26379:26379"
+    volumes:
+      - ../config/sentinel.conf:/etc/redis/sentinel.conf
+    command: redis-sentinel /etc/redis/sentinel.conf
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - scraper-net
+
+  sentinel-2:
+    image: redis:7-alpine
+    container_name: scraper-sentinel-2
+    ports:
+      - "26380:26379"
+    volumes:
+      - ../config/sentinel.conf:/etc/redis/sentinel.conf
+    command: redis-sentinel /etc/redis/sentinel.conf
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - scraper-net
+
+  sentinel-3:
+    image: redis:7-alpine
+    container_name: scraper-sentinel-3
+    ports:
+      - "26381:26379"
+    volumes:
+      - ../config/sentinel.conf:/etc/redis/sentinel.conf
+    command: redis-sentinel /etc/redis/sentinel.conf
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - scraper-net
+
+  # === Prometheus ===
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: scraper-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ../config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - scraper-net
+
+  # === Grafana ===
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: scraper-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../config/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ../config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=scraper123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - scraper-net
+
+  # === Loki (Log Aggregation) ===
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: scraper-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - scraper-net
+
+  # === Jaeger (Distributed Tracing) ===
+  jaeger:
+    image: jaegertracing/all-in-one:1.51
+    container_name: scraper-jaeger
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "14268:14268" # HTTP collector
+      - "6831:6831/udp" # UDP compact thrift
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - scraper-net
+
+  # === MinIO (S3-compatible Storage — optional) ===
+  minio:
+    image: minio/minio:latest
+    container_name: scraper-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    networks:
+      - scraper-net
+
+volumes:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  minio-data:
+
+
+networks:
+  scraper-net:
+    driver: bridge
