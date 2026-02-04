@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zypher — Search & Scrape Anything</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <div class="noise"></div>
+    <div class="cursor-glow" id="cursor-glow"></div>
+
+    <canvas id="particle-canvas"></canvas>
+
+    <nav class="topbar">
+        <div class="topbar-left">
+            <div class="brand">
+                <img src="/static/logo.png" alt="Zypher" class="brand-logo">
+            </div>
+        </div>
+        <div class="topbar-center">
+            <a href="#docs" class="nav-link">Documentation</a>
+            <a href="#apikey" class="nav-link">API Key</a>
+            <a href="#pricing" class="nav-link">Pricing</a>
+        </div>
+        <div class="topbar-right">
+            <div class="pill-toggle" id="mode-toggle">
+                <button class="pill active" id="pill-search" data-mode="search">search</button>
+                <button class="pill" id="pill-url" data-mode="url">url</button>
+                <div class="pill-slider" id="pill-slider"></div>
+            </div>
+            <div class="live-dot">
+                <span class="dot" id="dot"></span>
+                <span class="dot-label" id="dot-label">idle</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="content">
+        <section class="hero" id="hero">
+            <p class="hero-eyebrow">search anything. scrape everything.</p>
+            <h1 class="hero-heading" id="hero-heading"></h1>
+            <p class="hero-body">
+                Drop a keyword — a medicine, a gadget, a person, a random thought —<br>
+                and watch us rip through the web to bring back <em>everything</em> we find.
+            </p>
+        </section>
+
+        <section class="input-area">
+            <div class="input-wrap" id="input-wrap">
+                <input id="q" type="text" class="q"
+                    placeholder="try &quot;dolo 650&quot; or &quot;mechanical pencil&quot; ..." autocomplete="off"
+                    spellcheck="false">
+                <div class="input-extras" id="input-extras" style="display:none;">
+                    <span class="extra-label">depth</span>
+                    <input type="number" id="depth-num" class="depth-num" value="1" min="1" max="3">
+                </div>
+                <button class="go" id="go" onclick="fire()">
+                    <span class="go-text" id="go-text">go</span>
+                    <span class="go-arrow">&rarr;</span>
+                </button>
+            </div>
+            <div class="suggestions">
+                <button class="tag" onclick="quick('dolo 650 tablet')">dolo 650</button>
+                <button class="tag" onclick="quick('mechanical pencil')">pencil</button>
+                <button class="tag" onclick="quick('iPhone 16 Pro specs')">iPhone 16</button>
+                <button class="tag" onclick="quick('bitcoin price today')">bitcoin</button>
+                <button class="tag" onclick="quick('best running shoes 2025')">running shoes</button>
+                <button class="tag" onclick="quick('paracetamol uses')">paracetamol</button>
+                <button class="tag" onclick="quick('Tesla Model 3')">Tesla</button>
+            </div>
+        </section>
+
+        <!-- Loader -->
+        <section class="loader-area" id="loader-area">
+            <div class="loader-box">
+                <div class="orbit">
+                    <div class="orbit-dot"></div>
+                </div>
+                <p class="loader-msg" id="loader-msg">searching the web...</p>
+                <div class="loader-bar">
+                    <div class="loader-fill" id="loader-fill"></div>
+                </div>
+                <div class="loader-steps">
+                    <span class="ls" id="ls1">&#9679; finding results</span>
+                    <span class="ls" id="ls2">&#9675; scraping pages</span>
+                    <span class="ls" id="ls3">&#9675; extracting data</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results -->
+        <section class="results-area" id="results-area">
+            <div class="results-header">
+                <div class="rh-left">
+                    <span class="rh-query" id="rh-query"></span>
+                    <span class="rh-count" id="rh-count"></span>
+                </div>
+                <button class="clear-btn" onclick="clearResults()">clear &times;</button>
+            </div>
+
+            <div class="counters" id="counters">
+                <div class="ctr"><span class="ctr-num" id="c-pages">0</span><span class="ctr-lbl">pages</span></div>
+                <div class="ctr"><span class="ctr-num" id="c-links">0</span><span class="ctr-lbl">links</span></div>
+                <div class="ctr"><span class="ctr-num" id="c-imgs">0</span><span class="ctr-lbl">images</span></div>
+                <div class="ctr"><span class="ctr-num" id="c-words">0</span><span class="ctr-lbl">words</span></div>
+            </div>
+
+            <div class="cards" id="cards"></div>
+        </section>
+
+        <!-- Error -->
+        <section class="err-area" id="err-area">
+            <div class="err-box">
+                <span class="err-icon">!</span>
+                <p class="err-title" id="err-title">something broke</p>
+                <p class="err-msg" id="err-msg"></p>
+                <button class="err-retry" onclick="clearResults()">try again</button>
+            </div>
+        </section>
+    </main>
+
+    <footer class="foot">
+        <span>zypher &middot; built with go &middot; redis &middot; duckduckgo</span>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>
