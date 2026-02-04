@@ -1,0 +1,38 @@
+# Extraction Rules — Per-domain CSS selectors for structured data extraction
+# E-08: Loaded by parser.Dispatcher at startup
+
+# Example rules for common sites
+# Each domain gets a list of extraction rules with CSS selectors.
+# These rules are applied during HTML parsing to extract structured fields.
+
+rules:
+  example.com:
+    - name: title
+      selector: "h1.article-title"
+      attr: text
+    - name: author
+      selector: "span.author-name"
+      attr: text
+    - name: published_date
+      selector: "time.published"
+      attr: datetime
+    - name: price
+      selector: "span.price"
+      attr: text
+    - name: description
+      selector: "meta[name='description']"
+      attr: content
+
+  news.ycombinator.com:
+    - name: title
+      selector: "a.titlelink"
+      attr: text
+    - name: link
+      selector: "a.titlelink"
+      attr: href
+    - name: score
+      selector: "span.score"
+      attr: text
+    - name: author
+      selector: "a.hnuser"
+      attr: text
