@@ -456,4 +456,53 @@ func searchGoogle(ctx context.
 	return results, nil
 }
 
-func extrac
+func extractDDGURL(href string) string {
+	if href == "" {
+		return ""
+	}
+
+	if strings.Contains(href, "uddg=") {
+		parsed, err := url.Parse(href)
+		if err != nil {
+			return href
+		}
+		uddg := parsed.Query().Get("uddg")
+		if uddg != "" {
+			decoded, err := url.QueryUnescape(uddg)
+			if err == nil {
+				return decoded
+			}
+			return uddg
+		}
+	}
+
+	if strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://") {
+		return href
+	}
+
+	return ""
+}
+
+func scrapeSearchResults(ctx context.Context, searchResults []SearchResult) []PageResult {
+	results := make([]PageResult, 0, len(searchResults))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 5)
+
+	for _, sr := range searchResults {
+		wg.Add(1)
+		go func(s SearchResult) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			result := fetchAndParse(ctx, s.URL)
+			result.Snippet = s.Snippet
+
+			if result.Title == "" || strings.HasPrefix(result.Title, "Error:") || strings.HasPrefix(result.Title, "Fetch error:") {
+				result.Title = s.Title
+			}
+
+			mu.Lock()
+			results = append(results, result)
+			
