@@ -333,4 +333,10 @@ func handleSearch(w http.
 
 		searchResults, err = searchGoogle(r.Context(), req.Query, req.Count)
 		if err != nil {
-			jsonError(w, "Search failed
+			jsonError(w, "Search failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if len(searchResults) == 0 {
+		jsonError(w, "No search results found for: "+req.Query, htt
