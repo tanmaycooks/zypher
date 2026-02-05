@@ -339,4 +339,21 @@ func handleSearch(w http.
 	}
 
 	if len(searchResults) == 0 {
-		jsonError(w, "No search results found for: "+req.Query, htt
+		jsonError(w, "No search results found for: "+req.Query, http.StatusNotFound)
+		return
+	}
+
+	results := scrapeSearchResults(r.Context(), searchResults)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"query":          req.Query,
+		"search_results": searchResults,
+		"results":        results,
+		"count":          len(results),
+	})
+}
+
+func searchDuckDuckGo(
+	ctx context.
+		Context, qu
