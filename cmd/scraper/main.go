@@ -162,4 +162,11 @@ func main() {
 }
 func parseSeeds(input string) []string {
 	seeds := make([]string, 0)
-	
+	for _, s := range strings.Split(input, ",") {
+		trimmed := strings.TrimSpace(s)
+		if trimmed != "" {
+			seeds = append(seeds, trimmed)
+		}
+	}
+	return seeds
+}
