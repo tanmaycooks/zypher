@@ -299,4 +299,18 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func handleSearch(w http.
 	ResponseWriter, r *http.Request) {
-	if r.Me
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Query string `json:"query"`
+		Count int    `json:"count"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Query == "" {
