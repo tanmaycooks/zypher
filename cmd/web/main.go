@@ -325,4 +325,12 @@ func handleSearch(w http.
 		req.Count = 15
 	}
 
-	logger.Info("search requ
+	logger.Info("search request", "query", req.Query, "count", req.Count)
+
+	searchResults, err := searchDuckDuckGo(r.Context(), req.Query, req.Count)
+	if err != nil {
+		logger.Error("DuckDuckGo search failed", "error", err)
+
+		searchResults, err = searchGoogle(r.Context(), req.Query, req.Count)
+		if err != nil {
+			jsonError(w, "Search failed
