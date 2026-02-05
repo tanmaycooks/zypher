@@ -38,4 +38,128 @@ func main() {
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelIn
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+
+	logger.Info("starting web scraper",
+		"redis", *redisAddr,
+		"min_concur", *minConcur,
+		"max_concur", *maxConcur,
+		"batch_size", *batchSize,
+	)
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:         *redisAddr,
+		Password:     *redisPassword,
+		DB:           0,
+		PoolSize:     100,
+		MinIdleConns: 10,
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		logger.Error("failed to connect to Redis", "error", err)
+		os.Exit( // Command scraper is the entry point for the high-performance web scraper.
+			1)
+	}
+	logger.Info("redis connected", "addr", *redisAddr)
+
+	// It wires all subsystems together and starts the pipeline.
+
+	// CLI flags
+	// Logger
+	// Redis client
+	// Verify Redis connection
+	// DNS Cache (B-02)
+	// HTTP Transport with DNS cache
+	// Subsystems
+	// Worker pool
+	// Seed URLs
+	// Prometheus metrics endpoint
+	// Graceful shutdown in background
+	// Run the worker pool (blocks until context is cancelled)
+
+	// parseSeeds splits comma-separated seed URLs.
+	dnsCache := dns.New(5 * time.Minute)
+
+	httpTransport := transport.NewHTTPTransport(dnsCache)
+
+	httpClient := &http.Client{
+		Transport: httpTransport,
+		Timeout:   30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("too many redirects")
+			}
+			return nil
+		},
+	}
+
+	dedupFilter := dedup.NewDistributedFilter(rdb, logger)
+	front := frontier.NewFrontier(rdb)
+	robotsCache := robots.NewCache(24*time.Hour, logger)
+	parserDispatch := parser.NewDispatcher(nil)
+	streamWriter := stream.NewWriter(rdb, "scraper:output", 100, logger)
+	changeTracker := scheduler.NewChangeTracker(rdb, logger)
+
+	pool := worker.NewPool(
+		worker.PoolConfig{
+			BatchSize: *batchSize,
+			MinConcur: *minConcur,
+			MaxConcur: *maxConcur,
+		},
+		front,
+		dedupFilter,
+		robotsCache,
+		parserDispatch,
+		streamWriter,
+		changeTracker,
+		httpClient,
+		logger,
+	)
+
+	if *seedURLs != "" {
+		seeds := parseSeeds(*seedURLs)
+		for _, seed := range seeds {
+			if err := front.Push(ctx, seed, 1.0, time.Time{}); err != nil {
+				logger.Warn("failed to seed URL", "url", seed, "error", err)
+			}
+		}
+		logger.Info("seeded frontier", "count", len(seeds))
+	}
+
+	go func() {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OK"))
+		})
+		addr := fmt.Sprintf(":%d", *metricsPort)
+		logger.Info("metrics server starting", "addr", addr)
+		if err := http.ListenAndServe(addr, mux); err != nil {
+			logger.Error("metrics server failed", "error", err)
+		}
+	}()
+
+	go shutdown.GracefulShutdown(&shutdown.Components{
+		Cancel:       cancel,
+		WorkerPool:   pool,
+		StreamWriter: streamWriter,
+		DedupFilter:  dedupFilter,
+		Redis:        rdb,
+	}, logger)
+
+	pool.Run(ctx)
+
+	logger.Info("scraper shutdown complete")
+}
+func parseSeeds(input string) []string {
+	seeds := make([]string, 0)
+	
