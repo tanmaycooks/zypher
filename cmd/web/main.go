@@ -217,4 +217,86 @@ func main() {
 		port = "8080"
 	}
 
-	logger.Info("web server
+	logger.Info("web server starting", "port", port, "url", "http://localhost:"+port)
+	handler := bodyLimitMiddleware(1 << 20)(corsMiddleware(mux))
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
+		logger.Error("server failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func bodyLimitMiddleware(maxBytes int64) func(http.Handler) http.
+	Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func redisHealthCheck(logger *slog.Logger) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if rdb == nil {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		err := rdb.Ping(ctx).Err()
+		cancel()
+		if err != nil {
+			logger.Warn("redis health check failed, attempting reconnect", "error", err)
+
+		}
+	}
+}
+
+func handleIndex(w http.
+	ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	data, _ := staticFS.ReadFile("static/index.html")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(data)
+}
+
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	status := "ok"
+	redisStatus := "disconnected"
+
+	if rdb != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := rdb.Ping(ctx).Err(); err == nil {
+			redisStatus = "connected"
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": status,
+		"redis":  redisStatus,
+	})
+}
+
+func handleSearch(w http.
+	ResponseWriter, r *http.Request) {
+	if r.Me
