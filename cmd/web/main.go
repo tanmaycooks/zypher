@@ -399,4 +399,61 @@ func searchDuckDuckGo(
 		}
 
 		if actualURL != "" && title != "" {
-			results = append
+			results = append(results, SearchResult{
+				Title:   title,
+				URL:     actualURL,
+				Snippet: snippet,
+			})
+		}
+	})
+
+	return results, nil
+}
+
+func searchGoogle(ctx context.
+	Context, query string, count int) ([]SearchResult, error) {
+	searchURL := "https://www.google.com/search?q=" + url.QueryEscape(query) + "&num=" + fmt.Sprintf("%d", count)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", antidetect.Pick())
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []SearchResult
+	doc.Find("div.g").Each(func(i int, s *goquery.Selection) {
+		if len(results) >= count {
+			return
+		}
+
+		title := strings.TrimSpace(s.Find("h3").First().Text())
+		href, _ := s.Find("a").First().Attr("href")
+		snippet := strings.TrimSpace(s.Find(".VwiC3b").Text())
+
+		if href != "" && title != "" && strings.HasPrefix(href, "http") {
+			results = append(results, SearchResult{
+				Title:   title,
+				URL:     href,
+				Snippet: snippet,
+			})
+		}
+	})
+
+	return results, nil
+}
+
+func extrac
