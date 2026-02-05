@@ -356,4 +356,47 @@ func handleSearch(w http.
 
 func searchDuckDuckGo(
 	ctx context.
-		Context, qu
+		Context, query string, count int) ([]SearchResult, error) {
+	searchURL := "https://html.duckduckgo.com/html/?q=" + url.QueryEscape(query)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", antidetect.Pick())
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("DuckDuckGo request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("DuckDuckGo returned status %d", resp.StatusCode)
+	}
+
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("parse DuckDuckGo HTML: %w", err)
+	}
+
+	var results []SearchResult
+	doc.Find(".result").Each(func(i int, s *goquery.Selection) {
+		if len(results) >= count {
+			return
+		}
+
+		title := strings.TrimSpace(s.Find(".result__title .result__a").Text())
+		href, _ := s.Find(".result__title .result__a").Attr("href")
+		snippet := strings.TrimSpace(s.Find(".result__snippet").Text())
+
+		actualURL := extractDDGURL(href)
+		if actualURL == "" {
+			actualURL = href
+		}
+
+		if actualURL != "" && title != "" {
+			results = append
