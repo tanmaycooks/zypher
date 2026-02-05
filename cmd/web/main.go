@@ -314,3 +314,15 @@ func handleSearch(w http.
 	}
 
 	if req.Query == "" {
+		jsonError(w, "query is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.Count < 1 {
+		req.Count = 10
+	}
+	if req.Count > 15 {
+		req.Count = 15
+	}
+
+	logger.Info("search requ
