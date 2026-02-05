@@ -1,33 +1,34 @@
+// Command scraper is the entry point for the high-performance web scraper.
+// It wires all subsystems together and starts the pipeline.
 package main
 
 import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/anand/webscrapper/internal/dedup"
-	"github.com/anand/webscrapper/internal/dns"
-	"github.com/anand/webscrapper/internal/frontier"
-
-	"github.com/anand/webscrapper/internal/parser"
-
-	"github.com/anand/webscrapper/internal/robots"
-	"github.com/anand/webscrapper/internal/scheduler"
-
-	"github.com/anand/webscrapper/internal/shutdown"
-	"github.com/anand/webscrapper/internal/stream"
-	"github.com/anand/webscrapper/internal/transport"
-	"github.com/anand/webscrapper/internal/worker"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/redis/go-redis/v9"
 	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
+
+	"github.com/anand/webscrapper/internal/dedup"
+	"github.com/anand/webscrapper/internal/dns"
+	"github.com/anand/webscrapper/internal/frontier"
+	"github.com/anand/webscrapper/internal/parser"
+	"github.com/anand/webscrapper/internal/robots"
+	"github.com/anand/webscrapper/internal/scheduler"
+	"github.com/anand/webscrapper/internal/shutdown"
+	"github.com/anand/webscrapper/internal/stream"
+	"github.com/anand/webscrapper/internal/transport"
+	"github.com/anand/webscrapper/internal/worker"
 )
 
 func main() {
-
+	// CLI flags
 	redisAddr := flag.String("redis", "localhost:6379", "Redis address")
 	redisPassword := flag.String("redis-password", "", "Redis password")
 	seedURLs := flag.String("seeds", "", "Comma-separated seed URLs")
@@ -37,6 +38,7 @@ func main() {
 	batchSize := flag.Int("batch-size", 100, "Frontier batch size")
 	flag.Parse()
 
+	// Logger
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
@@ -49,6 +51,7 @@ func main() {
 		"batch_size", *batchSize,
 	)
 
+	// Redis client
 	rdb := redis.NewClient(&redis.Options{
 		Addr:         *redisAddr,
 		Password:     *redisPassword,
@@ -60,34 +63,20 @@ func main() {
 		WriteTimeout: 3 * time.Second,
 	})
 
+	// Verify Redis connection
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		logger.Error("failed to connect to Redis", "error", err)
-		os.Exit( // Command scraper is the entry point for the high-performance web scraper.
-			1)
+		os.Exit(1)
 	}
 	logger.Info("redis connected", "addr", *redisAddr)
 
-	// It wires all subsystems together and starts the pipeline.
-
-	// CLI flags
-	// Logger
-	// Redis client
-	// Verify Redis connection
 	// DNS Cache (B-02)
-	// HTTP Transport with DNS cache
-	// Subsystems
-	// Worker pool
-	// Seed URLs
-	// Prometheus metrics endpoint
-	// Graceful shutdown in background
-	// Run the worker pool (blocks until context is cancelled)
-
-	// parseSeeds splits comma-separated seed URLs.
 	dnsCache := dns.New(5 * time.Minute)
 
+	// HTTP Transport with DNS cache
 	httpTransport := transport.NewHTTPTransport(dnsCache)
 
 	httpClient := &http.Client{
@@ -101,6 +90,7 @@ func main() {
 		},
 	}
 
+	// Subsystems
 	dedupFilter := dedup.NewDistributedFilter(rdb, logger)
 	front := frontier.NewFrontier(rdb)
 	robotsCache := robots.NewCache(24*time.Hour, logger)
@@ -108,6 +98,7 @@ func main() {
 	streamWriter := stream.NewWriter(rdb, "scraper:output", 100, logger)
 	changeTracker := scheduler.NewChangeTracker(rdb, logger)
 
+	// Worker pool
 	pool := worker.NewPool(
 		worker.PoolConfig{
 			BatchSize: *batchSize,
@@ -124,6 +115,7 @@ func main() {
 		logger,
 	)
 
+	// Seed URLs
 	if *seedURLs != "" {
 		seeds := parseSeeds(*seedURLs)
 		for _, seed := range seeds {
@@ -134,6 +126,7 @@ func main() {
 		logger.Info("seeded frontier", "count", len(seeds))
 	}
 
+	// Prometheus metrics endpoint
 	go func() {
 		mux := http.NewServeMux()
 		mux.Handle("/metrics", promhttp.Handler())
@@ -148,6 +141,7 @@ func main() {
 		}
 	}()
 
+	// Graceful shutdown in background
 	go shutdown.GracefulShutdown(&shutdown.Components{
 		Cancel:       cancel,
 		WorkerPool:   pool,
@@ -156,10 +150,13 @@ func main() {
 		Redis:        rdb,
 	}, logger)
 
+	// Run the worker pool (blocks until context is cancelled)
 	pool.Run(ctx)
 
 	logger.Info("scraper shutdown complete")
 }
+
+// parseSeeds splits comma-separated seed URLs.
 func parseSeeds(input string) []string {
 	seeds := make([]string, 0)
 	for _, s := range strings.Split(input, ",") {
