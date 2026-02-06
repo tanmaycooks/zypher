@@ -551,4 +551,42 @@ func handleQuickScrape(w http.ResponseWriter, r *http.Request) {
 		"url":     req.URL,
 		"results": results,
 		"count":   len(results),
+	})
+}
+
+func scrapeURL(ctx context.
+	Context, targetURL string, depth int) []PageResult {
+	visited := &sync.Map{}
+	results := make([]PageResult, 0)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 10)
+
+	var crawl func(url string, d int)
+	crawl = func(u string, d int) {
+		defer wg.Done()
+		if d <= 0 {
+			return
+		}
+		if _, loaded := visited.LoadOrStore(u, true); loaded {
+			return
+		}
+
+		sem <- struct{}{}
+		defer func() { <-sem }()
+
+		result := fetchAndParse(ctx, u)
+		mu.Lock()
+		results = append(results, result)
+		mu.Unlock()
+
+		if d > 1 && result.StatusCode >= 200 && result.StatusCode < 400 {
+			for _, link := range result.Links {
+				if len(results) >= 50 {
+					break
+				}
+				absLink := resolveLink(u, link)
+				if absLink == "" || !strings.HasPrefix(absLink, "http") {
+					continue
+				}
 	
