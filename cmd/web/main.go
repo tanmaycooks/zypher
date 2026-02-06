@@ -505,4 +505,23 @@ func scrapeSearchResults(ctx context.Context, searchResults []SearchResult) []Pa
 
 			mu.Lock()
 			results = append(results, result)
-			
+			mu.Unlock()
+		}(sr)
+	}
+
+	wg.Wait()
+	return results
+}
+
+func handleQuickScrape(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		URL   string `json:"url"`
+		Depth int    `json:"depth"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid
