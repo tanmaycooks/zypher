@@ -730,4 +730,28 @@ func extractCleanText(doc *goquery.
 		textSrc = article.First()
 	} else if main := clone.Find("main"); main.Length() > 0 {
 		textSrc = main.First()
-	} e
+	} else {
+		textSrc = clone.Find("body")
+	}
+
+	raw := textSrc.Text()
+
+	raw = collapseSP.ReplaceAllString(raw, " ")
+	raw = collapseNL.ReplaceAllString(raw, "\n\n")
+	raw = strings.TrimSpace(raw)
+
+	return raw
+}
+
+func handleMCPTools(w http.
+	ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "GET only", http.StatusMethodNotAllowed)
+		return
+	}
+
+	tools := []map[string]interface{}{
+		{
+			"name":        "search",
+			"description": "Search the web by keyword and scrape each result page. Returns structured data including full page text, metadata, prices, ratings, links, images, and headings.",
+			"inp
