@@ -64,4 +64,11 @@ func GetDomainFingerprint(domain string) utls.ClientHelloID {
 
 	domainFPMu.Lock()
 	domainFPMap[domain] = fp
-	domainFPMu.Unlock(
+	domainFPMu.Unlock()
+
+	return fp
+}
+
+func NewUTLSTransport(helloID utls.ClientHelloID) *http.Transport {
+	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, _, err := net.SplitHostPort(add
