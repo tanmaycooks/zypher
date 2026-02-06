@@ -913,4 +913,18 @@ func resolveLink(base, href string) string {
 	if strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://") {
 		return href
 	}
-	if strings.HasPrefix(h
+	if strings.HasPrefix(href, "//") {
+		return "https:" + href
+	}
+	if strings.HasPrefix(href, "/") {
+		parts := strings.SplitN(base, "://", 2)
+		if len(parts) < 2 {
+			return ""
+		}
+		hostPart := strings.SplitN(parts[1], "/", 2)[0]
+		return parts[0] + "://" + hostPart + href
+	}
+	return ""
+}
+func jsonError(w http.ResponseWriter, msg string, code int) {
+	w.Header().Set("Content-Type
