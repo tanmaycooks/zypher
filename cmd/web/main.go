@@ -524,4 +524,31 @@ func handleQuickScrape(w http.ResponseWriter, r *http.Request) {
 		Depth int    `json:"depth"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "invalid
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.URL == "" {
+		jsonError(w, "url is required", http.StatusBadRequest)
+		return
+	}
+
+	if !strings.HasPrefix(req.URL, "http://") && !strings.HasPrefix(req.URL, "https://") {
+		req.URL = "https://" + req.URL
+	}
+
+	if req.Depth < 1 {
+		req.Depth = 1
+	}
+	if req.Depth > 3 {
+		req.Depth = 3
+	}
+
+	results := scrapeURL(r.Context(), req.URL, req.Depth)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"url":     req.URL,
+		"results": results,
+		"count":   len(results),
+	
