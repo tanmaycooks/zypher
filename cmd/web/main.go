@@ -589,4 +589,42 @@ func scrapeURL(ctx context.
 				if absLink == "" || !strings.HasPrefix(absLink, "http") {
 					continue
 				}
-	
+				if extractDomain(absLink) != extractDomain(u) {
+					continue
+				}
+				wg.Add(1)
+				go crawl(absLink, d-1)
+			}
+		}
+	}
+
+	wg.Add(1)
+	go crawl(targetURL, depth)
+	wg.Wait()
+	return results
+}
+
+func fetchAndParse(ctx context.Context, pageURL string) PageResult {
+	start := time.Now()
+
+	result := PageResult{
+		URL:       pageURL,
+		ScrapedAt: time.Now().Format(time.RFC3339),
+		Extras:    make(map[string]string),
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
+	if err != nil {
+		result.StatusCode = 0
+		result.Title = "Error: " + err.Error()
+		return result
+	}
+
+	req.Header.Set("User-Agent", antidetect.Pick())
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		result.StatusCode = 0
+		result.Title = "Fetch error: " + 
