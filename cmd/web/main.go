@@ -812,4 +812,99 @@ func handleMCPCall(w http.ResponseWriter,
 		Tool      string          `json:"tool"`
 		Arguments json.RawMessage `json:"arguments"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); er
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	switch req.Tool {
+	case "search":
+		var args struct {
+			Query string `json:"query"`
+			Count int    `json:"count"`
+		}
+		if err := json.Unmarshal(req.Arguments, &args); err != nil {
+			jsonError(w, "invalid arguments for search: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if args.Query == "" {
+			jsonError(w, "query is required", http.StatusBadRequest)
+			return
+		}
+		if args.Count < 1 {
+			args.Count = 10
+		}
+		if args.Count > 15 {
+			args.Count = 15
+		}
+
+		logger.Info("mcp search", "query", args.Query, "count", args.Count)
+
+		searchResults, err := searchDuckDuckGo(r.Context(), args.Query, args.Count)
+		if err != nil {
+			searchResults, err = searchGoogle(r.Context(), args.Query, args.Count)
+			if err != nil {
+				jsonError(w, "search failed: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		results := scrapeSearchResults(r.Context(), searchResults)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"tool":    "search",
+			"query":   args.Query,
+			"results": results,
+			"count":   len(results),
+		})
+
+	case "scrape":
+		var args struct {
+			URL   string `json:"url"`
+			Depth int    `json:"depth"`
+		}
+		if err := json.Unmarshal(req.Arguments, &args); err != nil {
+			jsonError(w, "invalid arguments for scrape: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if args.URL == "" {
+			jsonError(w, "url is required", http.StatusBadRequest)
+			return
+		}
+		if !strings.HasPrefix(args.URL, "http://") && !strings.HasPrefix(args.URL, "https://") {
+			args.URL = "https://" + args.URL
+		}
+		if args.Depth < 1 {
+			args.Depth = 1
+		}
+		if args.Depth > 3 {
+			args.Depth = 3
+		}
+
+		logger.Info("mcp scrape", "url", args.URL, "depth", args.Depth)
+
+		results := scrapeURL(r.Context(), args.URL, args.Depth)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"tool":    "scrape",
+			"url":     args.URL,
+			"results": results,
+			"count":   len(results),
+		})
+
+	default:
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": fmt.Sprintf("unknown tool: %q — available tools: search, scrape", req.Tool),
+			"code":  "unknown_tool",
+		})
+	}
+}
+func extractDomain(rawURL string) string {
+	parts := strings.SplitN(rawURL, "://", 2)
+	if len(parts) < 2 {
+		return ""
+	}
+	host := strings.SplitN(parts[1], "/", 2)[0]
+	host = strings.SplitN(host, ":", 2)[0]
+	return strings.ToLower(host)
