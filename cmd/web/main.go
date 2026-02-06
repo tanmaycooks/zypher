@@ -754,4 +754,62 @@ func handleMCPTools(w http.
 		{
 			"name":        "search",
 			"description": "Search the web by keyword and scrape each result page. Returns structured data including full page text, metadata, prices, ratings, links, images, and headings.",
-			"inp
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{
+						"type":        "string",
+						"description": "The search query (keyword, product name, topic, etc.)",
+					},
+					"count": map[string]interface{}{
+						"type":        "integer",
+						"description": "Number of result pages to scrape (1-15, default 10)",
+						"default":     10,
+						"minimum":     1,
+						"maximum":     15,
+					},
+				},
+				"required": []string{"query"},
+			},
+		},
+		{
+			"name":        "scrape",
+			"description": "Scrape a specific URL and optionally follow links to the given depth. Returns full page text, metadata, links, images, and headings.",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"url": map[string]interface{}{
+						"type":        "string",
+						"description": "The URL to scrape",
+					},
+					"depth": map[string]interface{}{
+						"type":        "integer",
+						"description": "How many levels of links to follow (1-3, default 1)",
+						"default":     1,
+						"minimum":     1,
+						"maximum":     3,
+					},
+				},
+				"required": []string{"url"},
+			},
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"tools": tools,
+	})
+}
+func handleMCPCall(w http.ResponseWriter,
+	r *http.
+		Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Tool      string          `json:"tool"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); er
