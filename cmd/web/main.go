@@ -1,3 +1,6 @@
+// Command web serves the scraper frontend and API.
+// Supports both URL scraping AND keyword search (e.g., "pencil", "dolo650 medicine").
+// Keyword search uses DuckDuckGo HTML to find results, then scrapes each page.
 package main
 
 import (
@@ -5,13 +8,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
-	"github.com/anand/webscrapper/internal/antidetect"
-	"github.com/anand/webscrapper/internal/dns"
-	"github.com/anand/webscrapper/internal/transport"
-
-	"github.com/redis/go-redis/v9"
-
 	"io"
 	"log/slog"
 	"net/http"
@@ -21,118 +17,33 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
+	"github.com/redis/go-redis/v9"
+
+	"github.com/anand/webscrapper/internal/antidetect"
+	"github.com/anand/webscrapper/internal/dns"
+	"github.com/anand/webscrapper/internal/transport"
 )
 
+//go:embed static/*
 var staticFS embed.FS
 
+// SearchResult holds a result from DuckDuckGo search.
 type SearchResult struct {
-	Title string `json:"title"`
-
+	Title   string `json:"title"`
 	URL     string `json:"url"`
 	Snippet string `json:"snippet"`
 }
+
+// PageResult holds data scraped from a single page.
 type PageResult struct {
-	URL        string `json:"url"`
-	Title      string `json:"title"`
-	StatusCode int    `json:"status_code"`
-
-	Content    string   `json:"content"`
-	ContentLen int      `json:"content_length"`
-	Links      []string `json:"links"` // Command web serves the scraper frontend and API.
-
-	// Supports both URL scraping AND keyword search (e.g., "pencil", "dolo650 medicine").
-
-	// Keyword search uses DuckDuckGo HTML to find results, then scrapes each page.
-
-	//go:embed static/*
-	// SearchResult holds a result from DuckDuckGo search.
-	// PageResult holds data scraped from a single page.
-	// cleaned readable text (max 50KB)
-	// char count of full pre-truncation text
-	// Redis (optional — for caching)
-	// Start background Redis health check
-	// HTTP client with DNS cache + anti-detection
-	// Configurable redirect limit
-	// Choose between standard and UTLS transport
-	// Routes
-	// Keyword search
-	// Direct URL scrape
-	// MCP tool discovery
-	// MCP tool execution
-	// Health check
-	// 1MB limit
-	// Redis client handles reconnection automatically, just log
-	// ========================
-	// KEYWORD SEARCH (the main feature)
-	// ========================
-
-	// handleSearch accepts a keyword query, searches DuckDuckGo, and scrapes each result page.
-
-	// how many results to scrape (max 15)
-	// Step 1: Search DuckDuckGo for the query
-	// Fallback: try Google
-	// Step 2: Scrape each result page concurrently
-
-	// searchDuckDuckGo scrapes the DuckDuckGo HTML results page.
-
-	// DuckDuckGo wraps URLs in a redirect — extract the actual URL
-
-	// searchGoogle scrapes Google search results (fallback).
-
-	// extractDDGURL extracts the actual URL from DuckDuckGo's redirect wrapper.
-
-	// DuckDuckGo uses //duckduckgo.com/l/?uddg=ENCODED_URL&...
-
-	// Direct URL
-	// scrapeSearchResults concurrently scrapes each search result page.
-	// max 5 concurrent scrapes
-	// preserve search snippet
-
-	// If we couldn't get a title from the page, use the search title
-	// ========================
-	// DIRECT URL SCRAPE
-
-	// ========================
-	// scrapeURL fetches a URL and optionally follows links.
-
-	// ========================
-	// PAGE PARSER
-	// ========================
-	// Title
-	// Meta description
-	// OG meta tags
-	// Headings
-	// Links
-	// Images
-	// Clean text extraction — strip noise elements, prefer article/main
-	// Word count
-	// Try to extract prices (for products)
-
-	// Try to extract ratings
-	// ========================
-	// CLEAN TEXT EXTRACTION
-	// ========================
-	// collapseWS matches 3+ consecutive newlines or 2+ consecutive spaces.
-
-	// extractCleanText removes noise elements and returns readable text.
-
-	// Prefers <article> or <main> content; falls back to <body>.
-
-	// Clone so we don't mutate the original doc used for other extraction
-
-	// Strip noise elements
-	// Prefer article > main > body
-	// Collapse whitespace
-	// ========================
-	// MCP — MODEL CONTEXT PROTOCOL
-	// ========================
-
-	// handleMCPTools returns the tool definitions for MCP-compatible agents.
-
-	// handleMCPCall executes a tool call — routes directly to internal functions (no HTTP round-trip).
-	// ========================
-	// HELPERS
-	// ========================
+	URL         string            `json:"url"`
+	Title       string            `json:"title"`
+	StatusCode  int               `json:"status_code"`
+	Content     string            `json:"content"`        // cleaned readable text (max 50KB)
+	ContentLen  int               `json:"content_length"` // char count of full pre-truncation text
+	Links       []string          `json:"links"`
 	Headings    []string          `json:"headings"`
 	MetaDesc    string            `json:"meta_description"`
 	WordCount   int               `json:"word_count"`
@@ -153,6 +64,7 @@ func main() {
 	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
+	// Redis (optional — for caching)
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
 		redisAddr = "localhost:6379"
@@ -170,12 +82,14 @@ func main() {
 		rdb = nil
 	} else {
 		logger.Info("redis connected", "addr", redisAddr)
-
+		// Start background Redis health check
 		go redisHealthCheck(logger)
 	}
 
+	// HTTP client with DNS cache + anti-detection
 	dnsCache := dns.New(5 * time.Minute)
 
+	// Configurable redirect limit
 	maxRedirects := 5
 	if mr := os.Getenv("MAX_REDIRECTS"); mr != "" {
 		if parsed, err := fmt.Sscanf(mr, "%d", &maxRedirects); err == nil && parsed > 0 {
@@ -183,6 +97,7 @@ func main() {
 		}
 	}
 
+	// Choose between standard and UTLS transport
 	var httpTransport http.RoundTripper
 	useUTLS := os.Getenv("USE_UTLS") == "true"
 	if useUTLS {
@@ -203,12 +118,13 @@ func main() {
 		},
 	}
 
+	// Routes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/search", handleSearch)
-	mux.HandleFunc("/api/quick-scrape", handleQuickScrape)
-	mux.HandleFunc("/mcp/tools", handleMCPTools)
-	mux.HandleFunc("/mcp/call", handleMCPCall)
-	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/api/search", handleSearch)            // Keyword search
+	mux.HandleFunc("/api/quick-scrape", handleQuickScrape) // Direct URL scrape
+	mux.HandleFunc("/mcp/tools", handleMCPTools)           // MCP tool discovery
+	mux.HandleFunc("/mcp/call", handleMCPCall)             // MCP tool execution
+	mux.HandleFunc("/health", handleHealth)                // Health check
 	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
 	mux.HandleFunc("/", handleIndex)
 
@@ -218,7 +134,7 @@ func main() {
 	}
 
 	logger.Info("web server starting", "port", port, "url", "http://localhost:"+port)
-	handler := bodyLimitMiddleware(1 << 20)(corsMiddleware(mux))
+	handler := bodyLimitMiddleware(1 << 20)(corsMiddleware(mux)) // 1MB limit
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		logger.Error("server failed", "error", err)
 		os.Exit(1)
@@ -238,8 +154,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func bodyLimitMiddleware(maxBytes int64) func(http.Handler) http.
-	Handler {
+func bodyLimitMiddleware(maxBytes int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
@@ -261,13 +176,12 @@ func redisHealthCheck(logger *slog.Logger) {
 		cancel()
 		if err != nil {
 			logger.Warn("redis health check failed, attempting reconnect", "error", err)
-
+			// Redis client handles reconnection automatically, just log
 		}
 	}
 }
 
-func handleIndex(w http.
-	ResponseWriter, r *http.Request) {
+func handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
@@ -297,8 +211,12 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleSearch(w http.
-	ResponseWriter, r *http.Request) {
+// ========================
+// KEYWORD SEARCH (the main feature)
+// ========================
+
+// handleSearch accepts a keyword query, searches DuckDuckGo, and scrapes each result page.
+func handleSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
@@ -306,7 +224,7 @@ func handleSearch(w http.
 
 	var req struct {
 		Query string `json:"query"`
-		Count int    `json:"count"`
+		Count int    `json:"count"` // how many results to scrape (max 15)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
@@ -327,10 +245,11 @@ func handleSearch(w http.
 
 	logger.Info("search request", "query", req.Query, "count", req.Count)
 
+	// Step 1: Search DuckDuckGo for the query
 	searchResults, err := searchDuckDuckGo(r.Context(), req.Query, req.Count)
 	if err != nil {
 		logger.Error("DuckDuckGo search failed", "error", err)
-
+		// Fallback: try Google
 		searchResults, err = searchGoogle(r.Context(), req.Query, req.Count)
 		if err != nil {
 			jsonError(w, "Search failed: "+err.Error(), http.StatusInternalServerError)
@@ -343,6 +262,7 @@ func handleSearch(w http.
 		return
 	}
 
+	// Step 2: Scrape each result page concurrently
 	results := scrapeSearchResults(r.Context(), searchResults)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -354,9 +274,8 @@ func handleSearch(w http.
 	})
 }
 
-func searchDuckDuckGo(
-	ctx context.
-		Context, query string, count int) ([]SearchResult, error) {
+// searchDuckDuckGo scrapes the DuckDuckGo HTML results page.
+func searchDuckDuckGo(ctx context.Context, query string, count int) ([]SearchResult, error) {
 	searchURL := "https://html.duckduckgo.com/html/?q=" + url.QueryEscape(query)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
@@ -393,6 +312,7 @@ func searchDuckDuckGo(
 		href, _ := s.Find(".result__title .result__a").Attr("href")
 		snippet := strings.TrimSpace(s.Find(".result__snippet").Text())
 
+		// DuckDuckGo wraps URLs in a redirect — extract the actual URL
 		actualURL := extractDDGURL(href)
 		if actualURL == "" {
 			actualURL = href
@@ -410,8 +330,8 @@ func searchDuckDuckGo(
 	return results, nil
 }
 
-func searchGoogle(ctx context.
-	Context, query string, count int) ([]SearchResult, error) {
+// searchGoogle scrapes Google search results (fallback).
+func searchGoogle(ctx context.Context, query string, count int) ([]SearchResult, error) {
 	searchURL := "https://www.google.com/search?q=" + url.QueryEscape(query) + "&num=" + fmt.Sprintf("%d", count)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
@@ -456,11 +376,13 @@ func searchGoogle(ctx context.
 	return results, nil
 }
 
+// extractDDGURL extracts the actual URL from DuckDuckGo's redirect wrapper.
 func extractDDGURL(href string) string {
 	if href == "" {
 		return ""
 	}
 
+	// DuckDuckGo uses //duckduckgo.com/l/?uddg=ENCODED_URL&...
 	if strings.Contains(href, "uddg=") {
 		parsed, err := url.Parse(href)
 		if err != nil {
@@ -476,6 +398,7 @@ func extractDDGURL(href string) string {
 		}
 	}
 
+	// Direct URL
 	if strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://") {
 		return href
 	}
@@ -483,11 +406,12 @@ func extractDDGURL(href string) string {
 	return ""
 }
 
+// scrapeSearchResults concurrently scrapes each search result page.
 func scrapeSearchResults(ctx context.Context, searchResults []SearchResult) []PageResult {
 	results := make([]PageResult, 0, len(searchResults))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, 5)
+	sem := make(chan struct{}, 5) // max 5 concurrent scrapes
 
 	for _, sr := range searchResults {
 		wg.Add(1)
@@ -497,8 +421,9 @@ func scrapeSearchResults(ctx context.Context, searchResults []SearchResult) []Pa
 			defer func() { <-sem }()
 
 			result := fetchAndParse(ctx, s.URL)
-			result.Snippet = s.Snippet
+			result.Snippet = s.Snippet // preserve search snippet
 
+			// If we couldn't get a title from the page, use the search title
 			if result.Title == "" || strings.HasPrefix(result.Title, "Error:") || strings.HasPrefix(result.Title, "Fetch error:") {
 				result.Title = s.Title
 			}
@@ -512,6 +437,10 @@ func scrapeSearchResults(ctx context.Context, searchResults []SearchResult) []Pa
 	wg.Wait()
 	return results
 }
+
+// ========================
+// DIRECT URL SCRAPE
+// ========================
 
 func handleQuickScrape(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -554,8 +483,8 @@ func handleQuickScrape(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func scrapeURL(ctx context.
-	Context, targetURL string, depth int) []PageResult {
+// scrapeURL fetches a URL and optionally follows links.
+func scrapeURL(ctx context.Context, targetURL string, depth int) []PageResult {
 	visited := &sync.Map{}
 	results := make([]PageResult, 0)
 	var mu sync.Mutex
@@ -604,6 +533,10 @@ func scrapeURL(ctx context.
 	return results
 }
 
+// ========================
+// PAGE PARSER
+// ========================
+
 func fetchAndParse(ctx context.Context, pageURL string) PageResult {
 	start := time.Now()
 
@@ -648,14 +581,17 @@ func fetchAndParse(ctx context.Context, pageURL string) PageResult {
 		return result
 	}
 
+	// Title
 	result.Title = strings.TrimSpace(doc.Find("title").First().Text())
 
+	// Meta description
 	doc.Find("meta[name='description']").Each(func(i int, s *goquery.Selection) {
 		if content, exists := s.Attr("content"); exists {
 			result.MetaDesc = content
 		}
 	})
 
+	// OG meta tags
 	doc.Find("meta[property]").Each(func(i int, s *goquery.Selection) {
 		prop, _ := s.Attr("property")
 		content, _ := s.Attr("content")
@@ -664,6 +600,7 @@ func fetchAndParse(ctx context.Context, pageURL string) PageResult {
 		}
 	})
 
+	// Headings
 	doc.Find("h1, h2, h3").Each(func(i int, s *goquery.Selection) {
 		text := strings.TrimSpace(s.Text())
 		if text != "" && len(result.Headings) < 20 {
@@ -671,6 +608,7 @@ func fetchAndParse(ctx context.Context, pageURL string) PageResult {
 		}
 	})
 
+	// Links
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
 		href, exists := s.Attr("href")
 		if exists && href != "" && !strings.HasPrefix(href, "#") && !strings.HasPrefix(href, "javascript:") {
@@ -680,6 +618,7 @@ func fetchAndParse(ctx context.Context, pageURL string) PageResult {
 		}
 	})
 
+	// Images
 	doc.Find("img[src]").Each(func(i int, s *goquery.Selection) {
 		src, exists := s.Attr("src")
 		if exists && src != "" && len(result.Images) < 30 {
@@ -687,6 +626,7 @@ func fetchAndParse(ctx context.Context, pageURL string) PageResult {
 		}
 	})
 
+	// Clean text extraction — strip noise elements, prefer article/main
 	cleanText := extractCleanText(doc)
 	result.ContentLen = len(cleanText)
 	if len(cleanText) > 50*1024 {
@@ -695,8 +635,10 @@ func fetchAndParse(ctx context.Context, pageURL string) PageResult {
 		result.Content = cleanText
 	}
 
+	// Word count
 	result.WordCount = len(strings.Fields(cleanText))
 
+	// Try to extract prices (for products)
 	doc.Find("[class*='price'], [itemprop='price'], .a-price-whole, .product-price").Each(func(i int, s *goquery.Selection) {
 		price := strings.TrimSpace(s.Text())
 		if price != "" && result.Extras["price"] == "" {
@@ -704,6 +646,7 @@ func fetchAndParse(ctx context.Context, pageURL string) PageResult {
 		}
 	})
 
+	// Try to extract ratings
 	doc.Find("[class*='rating'], [itemprop='ratingValue']").Each(func(i int, s *goquery.Selection) {
 		rating := strings.TrimSpace(s.Text())
 		if rating != "" && len(rating) < 20 && result.Extras["rating"] == "" {
@@ -714,17 +657,25 @@ func fetchAndParse(ctx context.Context, pageURL string) PageResult {
 	return result
 }
 
+// ========================
+// CLEAN TEXT EXTRACTION
+// ========================
+
+// collapseWS matches 3+ consecutive newlines or 2+ consecutive spaces.
 var collapseNL = regexp.MustCompile(`\n{3,}`)
 var collapseSP = regexp.MustCompile(`[^\S\n]{2,}`)
 
-func extractCleanText(doc *goquery.
-	Document) string {
-
+// extractCleanText removes noise elements and returns readable text.
+// Prefers <article> or <main> content; falls back to <body>.
+func extractCleanText(doc *goquery.Document) string {
+	// Clone so we don't mutate the original doc used for other extraction
 	clone, _ := goquery.NewDocumentFromReader(strings.NewReader(""))
 	clone.Selection = doc.Selection.Clone()
 
+	// Strip noise elements
 	clone.Find("script, style, nav, footer, header, aside, noscript, [role='complementary'], [role='navigation'], svg, iframe").Remove()
 
+	// Prefer article > main > body
 	var textSrc *goquery.Selection
 	if article := clone.Find("article"); article.Length() > 0 {
 		textSrc = article.First()
@@ -736,6 +687,7 @@ func extractCleanText(doc *goquery.
 
 	raw := textSrc.Text()
 
+	// Collapse whitespace
 	raw = collapseSP.ReplaceAllString(raw, " ")
 	raw = collapseNL.ReplaceAllString(raw, "\n\n")
 	raw = strings.TrimSpace(raw)
@@ -743,8 +695,12 @@ func extractCleanText(doc *goquery.
 	return raw
 }
 
-func handleMCPTools(w http.
-	ResponseWriter, r *http.Request) {
+// ========================
+// MCP — MODEL CONTEXT PROTOCOL
+// ========================
+
+// handleMCPTools returns the tool definitions for MCP-compatible agents.
+func handleMCPTools(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "GET only", http.StatusMethodNotAllowed)
 		return
@@ -800,9 +756,9 @@ func handleMCPTools(w http.
 		"tools": tools,
 	})
 }
-func handleMCPCall(w http.ResponseWriter,
-	r *http.
-		Request) {
+
+// handleMCPCall executes a tool call — routes directly to internal functions (no HTTP round-trip).
+func handleMCPCall(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
@@ -900,6 +856,11 @@ func handleMCPCall(w http.ResponseWriter,
 		})
 	}
 }
+
+// ========================
+// HELPERS
+// ========================
+
 func extractDomain(rawURL string) string {
 	parts := strings.SplitN(rawURL, "://", 2)
 	if len(parts) < 2 {
@@ -909,6 +870,7 @@ func extractDomain(rawURL string) string {
 	host = strings.SplitN(host, ":", 2)[0]
 	return strings.ToLower(host)
 }
+
 func resolveLink(base, href string) string {
 	if strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://") {
 		return href
@@ -926,6 +888,7 @@ func resolveLink(base, href string) string {
 	}
 	return ""
 }
+
 func jsonError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
