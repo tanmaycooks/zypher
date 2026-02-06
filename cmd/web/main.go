@@ -908,3 +908,9 @@ func extractDomain(rawURL string) string {
 	host := strings.SplitN(parts[1], "/", 2)[0]
 	host = strings.SplitN(host, ":", 2)[0]
 	return strings.ToLower(host)
+}
+func resolveLink(base, href string) string {
+	if strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://") {
+		return href
+	}
+	if strings.HasPrefix(h
