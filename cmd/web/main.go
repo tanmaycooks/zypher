@@ -627,4 +627,107 @@ func fetchAndParse(ctx context.Context, pageURL string) PageResult {
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		result.StatusCode = 0
-		result.Title = "Fetch error: " + 
+		result.Title = "Fetch error: " + err.Error()
+		result.FetchTimeMs = time.Since(start).Milliseconds()
+		return result
+	}
+	defer resp.Body.Close()
+
+	result.StatusCode = resp.StatusCode
+	result.FetchTimeMs = time.Since(start).Milliseconds()
+
+	if resp.StatusCode >= 400 {
+		result.Title = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		return result
+	}
+
+	body := io.LimitReader(resp.Body, 5*1024*1024)
+	doc, err := goquery.NewDocumentFromReader(body)
+	if err != nil {
+		result.Title = "Parse error: " + err.Error()
+		return result
+	}
+
+	result.Title = strings.TrimSpace(doc.Find("title").First().Text())
+
+	doc.Find("meta[name='description']").Each(func(i int, s *goquery.Selection) {
+		if content, exists := s.Attr("content"); exists {
+			result.MetaDesc = content
+		}
+	})
+
+	doc.Find("meta[property]").Each(func(i int, s *goquery.Selection) {
+		prop, _ := s.Attr("property")
+		content, _ := s.Attr("content")
+		if content != "" && (strings.HasPrefix(prop, "og:") || strings.HasPrefix(prop, "product:")) {
+			result.Extras[prop] = content
+		}
+	})
+
+	doc.Find("h1, h2, h3").Each(func(i int, s *goquery.Selection) {
+		text := strings.TrimSpace(s.Text())
+		if text != "" && len(result.Headings) < 20 {
+			result.Headings = append(result.Headings, text)
+		}
+	})
+
+	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
+		href, exists := s.Attr("href")
+		if exists && href != "" && !strings.HasPrefix(href, "#") && !strings.HasPrefix(href, "javascript:") {
+			if len(result.Links) < 100 {
+				result.Links = append(result.Links, href)
+			}
+		}
+	})
+
+	doc.Find("img[src]").Each(func(i int, s *goquery.Selection) {
+		src, exists := s.Attr("src")
+		if exists && src != "" && len(result.Images) < 30 {
+			result.Images = append(result.Images, src)
+		}
+	})
+
+	cleanText := extractCleanText(doc)
+	result.ContentLen = len(cleanText)
+	if len(cleanText) > 50*1024 {
+		result.Content = cleanText[:50*1024]
+	} else {
+		result.Content = cleanText
+	}
+
+	result.WordCount = len(strings.Fields(cleanText))
+
+	doc.Find("[class*='price'], [itemprop='price'], .a-price-whole, .product-price").Each(func(i int, s *goquery.Selection) {
+		price := strings.TrimSpace(s.Text())
+		if price != "" && result.Extras["price"] == "" {
+			result.Extras["price"] = price
+		}
+	})
+
+	doc.Find("[class*='rating'], [itemprop='ratingValue']").Each(func(i int, s *goquery.Selection) {
+		rating := strings.TrimSpace(s.Text())
+		if rating != "" && len(rating) < 20 && result.Extras["rating"] == "" {
+			result.Extras["rating"] = rating
+		}
+	})
+
+	return result
+}
+
+var collapseNL = regexp.MustCompile(`\n{3,}`)
+var collapseSP = regexp.MustCompile(`[^\S\n]{2,}`)
+
+func extractCleanText(doc *goquery.
+	Document) string {
+
+	clone, _ := goquery.NewDocumentFromReader(strings.NewReader(""))
+	clone.Selection = doc.Selection.Clone()
+
+	clone.Find("script, style, nav, footer, header, aside, noscript, [role='complementary'], [role='navigation'], svg, iframe").Remove()
+
+	var textSrc *goquery.Selection
+	if article := clone.Find("article"); article.Length() > 0 {
+		textSrc = article.First()
+	} else if main := clone.Find("main"); main.Length() > 0 {
+		textSrc = main.First()
+	} e
