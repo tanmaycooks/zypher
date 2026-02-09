@@ -62,4 +62,8 @@ func Pick() string {
 }
 func WeightSum() float64 {
 	sum := 0.0
-	for _, ua := ran
+	for _, ua := range UAPool {
+		sum += ua.Weight
+	}
+	return sum
+}
