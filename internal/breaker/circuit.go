@@ -86,4 +86,9 @@ func (cb *CircuitBreaker) Allow() bool {
 		return true
 
 	case StateOpen:
-		if time.Since(cb.lastFailure
+		if time.Since(cb.lastFailure) >= cb.openTimeout {
+			cb.state = StateHalfOpen
+
+			return cb.probeActive.CompareAndSwap(false, true)
+		}
+		return
