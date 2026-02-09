@@ -24,4 +24,7 @@ func TestUAWeightSum(t *testing.T) {
 	}
 }
 func TestUAPickReturnsValid(t *testing.T) {
-	for i 
+	for i := 0; i < 1000; i++ {
+		ua := Pick()
+		if ua == "" {
+			t.Fatal("Pick() returned empty string")
