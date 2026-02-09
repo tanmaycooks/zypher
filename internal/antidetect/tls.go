@@ -71,4 +71,39 @@ func GetDomainFingerprint(domain string) utls.ClientHelloID {
 
 func NewUTLSTransport(helloID utls.ClientHelloID) *http.Transport {
 	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		host, _, err := net.SplitHostPort(add
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, fmt.Errorf("split host:port %q: %w", addr, err)
+		}
+
+		plainConn, err := (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext(ctx, network, addr)
+		if err != nil {
+			return nil, fmt.Errorf("tcp dial: %w", err)
+		}
+
+		uConn := utls.UClient(plainConn, &utls.Config{
+			ServerName:         host,
+			InsecureSkipVerify: false,
+		}, helloID)
+
+		if err := uConn.Handshake(); err != nil {
+			plainConn.Close()
+			return nil, fmt.Errorf("utls handshake: %w", err)
+		}
+
+		return uConn, nil
+	}
+
+	return &http.Transport{
+		DialTLSContext:      dial,
+		MaxIdleConns:        50_000,
+		MaxIdleConnsPerHost: 500,
+		IdleConnTimeout:     90 * time.Second,
+		ForceAttemptHTTP2:   true,
+	}
+}
+func NewRotatingTransport(domain string) *http.Transport {
+	fp := GetDomainFingerprint(
