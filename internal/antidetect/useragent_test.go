@@ -28,3 +28,23 @@ func TestUAPickReturnsValid(t *testing.T) {
 		ua := Pick()
 		if ua == "" {
 			t.Fatal("Pick() returned empty string")
+		}
+
+		found := false
+		for _, poolUA := range UAPool {
+			if poolUA.String == ua {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Pick() returned UA not in pool: %s", ua)
+		}
+	}
+}
+
+func TestUAPickDistribution(t *testing.T) {
+
+	counts := implemented")
+
+}
