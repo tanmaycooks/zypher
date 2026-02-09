@@ -106,4 +106,6 @@ func NewUTLSTransport(helloID utls.ClientHelloID) *http.Transport {
 	}
 }
 func NewRotatingTransport(domain string) *http.Transport {
-	fp := GetDomainFingerprint(
+	fp := GetDomainFingerprint(domain)
+	return NewUTLSTransport(fp)
+}
