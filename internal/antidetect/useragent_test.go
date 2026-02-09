@@ -45,6 +45,22 @@ func TestUAPickReturnsValid(t *testing.T) {
 
 func TestUAPickDistribution(t *testing.T) {
 
-	counts := implemented")
+	counts := make(map[string]int)
+	iterations := 100000
 
+	for i := 0; i < iterations; i++ {
+		ua := Pick()
+		counts[ua]++
+	}
+
+	for _, poolUA := range UAPool {
+		count := counts[poolUA.String]
+		actual := float64(count) / float64(iterations)
+		expected := poolUA.Weight
+
+		if math.Abs(actual-expected) > 0.02 {
+			t.Errorf("UA %q: expected weight %.2f, got %.4f (%d/%d)",
+				poolUA.String[:30], expected, actual, count, iterations)
+		}
+	}
 }
