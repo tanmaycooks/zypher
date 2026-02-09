@@ -52,4 +52,14 @@ func Pick() string {
 	r := rand.Float64()
 	cumulative := 0.0
 	for _, ua := range UAPool {
-		cumulative += 
+		cumulative += ua.Weight
+		if r <= cumulative {
+			return ua.String
+		}
+	}
+
+	return UAPool[len(UAPool)-1].String
+}
+func WeightSum() float64 {
+	sum := 0.0
+	for _, ua := ran
