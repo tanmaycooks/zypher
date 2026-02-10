@@ -107,4 +107,20 @@ func TestCircuitBreakerHalfOpenSingleProbe(t *testing.T) {
 	}
 }
 func TestCircuitBreakerFailedProbeReopens(t *testing.T) {
-	cb := NewCircuitBreaker(1, 1
+	cb := NewCircuitBreaker(1, 10*time.Millisecond)
+
+	cb.Allow()
+	cb.Record(false)
+
+	time.Sleep(20 * time.Millisecond)
+
+	if !cb.Allow() {
+		t.Error("probe should be allowed after timeout")
+	}
+
+	cb.Record(false)
+
+	if cb.GetState() != StateOpen {
+		t.Error("breaker should reopen after failed probe")
+	}
+}
