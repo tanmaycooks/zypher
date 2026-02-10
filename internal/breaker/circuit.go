@@ -91,4 +91,24 @@ func (cb *CircuitBreaker) Allow() bool {
 
 			return cb.probeActive.CompareAndSwap(false, true)
 		}
-		return
+		return false
+
+	case StateHalfOpen:
+
+		return false
+	}
+
+	return false
+}
+func (cb *CircuitBreaker) Record(success bool) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
+	cb.probeActive.Store(false)
+
+	if success {
+		cb.failures = 0
+		cb.state = StateClosed
+	} else {
+		cb.failures++
+		cb.lastFailure = time.N
