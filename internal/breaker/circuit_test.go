@@ -53,4 +53,10 @@ func TestCircuitBreakerRecovery(t *testing.
 	cb.Record(true)
 
 	if cb.GetState() != StateClosed {
-		t.Error
+		t.Error("breaker should be closed after successful probe")
+	}
+}
+func TestCircuitBreakerHalfOpenSingleProbe(t *testing.T) {
+	cb := NewCircuitBreaker(1, 10*time.Millisecond)
+
+	cb.Allow
