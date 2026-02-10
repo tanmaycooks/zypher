@@ -75,4 +75,14 @@ func TestCircuitBreakerHalfOpenSingleProbe(t *testing.T) {
 
 		// Should allow one probe
 
-		// Record succ
+		// Record success — should close
+		// TestCircuitBreakerHalfOpenSingleProbe verifies that exactly 1 goroutine
+
+		// gets through the HALF-OPEN probe gate when 5000 concurrent goroutines
+		// call Allow() after the open timeout.
+
+		// Trip the breaker
+
+		// Wait for open timeout
+
+		// Launch 5000 goroutines — exactly 1 shou
