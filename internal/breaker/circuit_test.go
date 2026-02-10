@@ -85,4 +85,26 @@ func TestCircuitBreakerHalfOpenSingleProbe(t *testing.T) {
 
 		// Wait for open timeout
 
-		// Launch 5000 goroutines — exactly 1 shou
+		// Launch 5000 goroutines — exactly 1 should get through
+
+		// Trip the breaker
+		// Wait for open timeout
+
+		// Probe allowed
+		// Probe fails — should reopen
+		go func() {
+			defer wg.Done()
+			if cb.Allow() {
+				allowed.Add(1)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if allowed.Load() != 1 {
+		t.Errorf("expected exactly 1 probe allowed, got %d", allowed.Load())
+	}
+}
+func TestCircuitBreakerFailedProbeReopens(t *testing.T) {
+	cb := NewCircuitBreaker(1, 1
