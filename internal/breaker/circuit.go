@@ -111,4 +111,16 @@ func (cb *CircuitBreaker) Record(success bool) {
 		cb.state = StateClosed
 	} else {
 		cb.failures++
-		cb.lastFailure = time.N
+		cb.lastFailure = time.Now()
+		if cb.failures >= cb.maxFailures {
+			cb.state = StateOpen
+		}
+	}
+}
+func (cb *CircuitBreaker) GetState() State {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	return cb.state
+}
+func (cb *CircuitBreaker) Failures() int {
+	cb
