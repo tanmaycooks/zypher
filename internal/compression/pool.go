@@ -71,4 +71,4 @@ func DecompressGzip(r io.Reader) ([]byte,
 
 func DecompressBrotli(r io.Reader) ([]byte,
 	error) {
-	panic
+	panic("not impl
