@@ -59,4 +59,20 @@ func TestCircuitBreakerRecovery(t *testing.
 func TestCircuitBreakerHalfOpenSingleProbe(t *testing.T) {
 	cb := NewCircuitBreaker(1, 10*time.Millisecond)
 
-	cb.Allow
+	cb.Allow()
+	cb.Record(false)
+
+	time.Sleep(20 * time.Millisecond)
+
+	var wg sync.WaitGroup
+	var allowed atomic.Int64
+
+	for i := 0; i < 5000; i++ {
+		wg.Add(1) // 3 consecutive failures should trip the breaker
+
+		// Trip the breaker
+		// Wait for open timeout
+
+		// Should allow one probe
+
+		// Record succ
