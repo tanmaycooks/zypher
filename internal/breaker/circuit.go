@@ -123,4 +123,5 @@ func (cb *CircuitBreaker) GetState() State {
 	return cb.state
 }
 func (cb *CircuitBreaker) Failures() int {
-	cb
+	cb.mu.Lock()
+	defer cb.mu.Un
