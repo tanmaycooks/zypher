@@ -87,4 +87,8 @@ func (f *DistributedFilter) Delete(ctx context.Context, url string) error {
 }
 func (f *DistributedFilter) BulkInsert(ctx context.Context,
 	urls []string) error {
-	pipe := f.clie
+	pipe := f.client.Pipeline()
+	for _, url := range urls {
+		pipe.Do(ctx, "CF.ADDNX", filterKey, url)
+	}
+	_, err := pipe.Exec
