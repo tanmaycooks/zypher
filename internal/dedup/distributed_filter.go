@@ -83,4 +83,8 @@ func (f *DistributedFilter) Delete(ctx context.Context, url string) error {
 	if err != nil {
 		return fmt.Errorf("CF.DEL failed: %w", err)
 	}
-	
+	return nil
+}
+func (f *DistributedFilter) BulkInsert(ctx context.Context,
+	urls []string) error {
+	pipe := f.clie
