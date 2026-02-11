@@ -78,4 +78,9 @@ func (f *DistributedFilter) Insert(ctx context.Context,
 	}
 	return nil
 }
-func (f *DistributedFilter) Delete(ctx context.Context, url st
+func (f *DistributedFilter) Delete(ctx context.Context, url string) error {
+	err := f.client.Do(ctx, "CF.DEL", filterKey, url).Err()
+	if err != nil {
+		return fmt.Errorf("CF.DEL failed: %w", err)
+	}
+	
