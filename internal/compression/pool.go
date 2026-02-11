@@ -71,4 +71,12 @@ func DecompressGzip(r io.Reader) ([]byte,
 
 func DecompressBrotli(r io.Reader) ([]byte,
 	error) {
-	panic("not 
+	br := brotliPool.Get().(*brotli.Reader)
+	defer brotliPool.Put(br)
+
+	br.Reset(r)
+	return io.ReadAll(io.LimitReader(br, maxBodySize))
+}
+
+func DecompressDeflate(r io.Reader) ([]byte, error) {
+	fr := flate.NewR
