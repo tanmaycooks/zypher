@@ -85,4 +85,6 @@ func DecompressDeflate(r io.Reader) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(fr, maxBodySize))
 }
 func Decompress(
-	encodin
+	encoding string, r io.Reader) ([]byte, error) {
+	switch encoding {
+	case "gzi
