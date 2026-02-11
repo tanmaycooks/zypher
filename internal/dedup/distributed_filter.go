@@ -66,4 +66,16 @@ func NewDistributedFilter(client *redis.Client, logger *slog.Logger) *Distribute
 func (f *DistributedFilter) Contains(ctx context.Context, url string) (bool, error) {
 	result, err := f.client.Do(ctx, "CF.EXISTS", filterKey, url).Bool()
 	if err != nil {
-		return false, fmt.Errorf("CF.EX
+		return false, fmt.Errorf("CF.EXISTS failed: %w", err)
+	}
+	return result, nil
+}
+func (f *DistributedFilter) Insert(ctx context.Context,
+	url string) error {
+	err := f.client.Do(ctx, "CF.ADDNX", filterKey, url).Err()
+	if err != nil {
+		return fmt.Errorf("CF.ADDNX failed: %w", err)
+	}
+	return nil
+}
+func (f *DistributedFilter) Delete(ctx context.Context, url st
