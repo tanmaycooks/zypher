@@ -79,4 +79,10 @@ func DecompressBrotli(r io.Reader) ([]byte,
 }
 
 func DecompressDeflate(r io.Reader) ([]byte, error) {
-	fr := flate.NewR
+	fr := flate.NewReader(r)
+	defer fr.Close()
+
+	return io.ReadAll(io.LimitReader(fr, maxBodySize))
+}
+func Decompress(
+	encodin
