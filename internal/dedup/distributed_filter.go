@@ -91,4 +91,12 @@ func (f *DistributedFilter) BulkInsert(ctx context.Context,
 	for _, url := range urls {
 		pipe.Do(ctx, "CF.ADDNX", filterKey, url)
 	}
-	_, err := pipe.Exec
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("bulk insert pipeline failed: %w", err)
+	}
+	return nil
+}
+
+func (f *DistributedFilter) Persist(ctx context.Context) error {
+	f.logger.Info("dedup filter 
