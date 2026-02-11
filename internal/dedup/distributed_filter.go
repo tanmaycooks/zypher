@@ -99,4 +99,6 @@ func (f *DistributedFilter) BulkInsert(ctx context.Context,
 }
 
 func (f *DistributedFilter) Persist(ctx context.Context) error {
-	f.logger.Info("dedup filter 
+	f.logger.Info("dedup filter persist: no-op (RedisBloom is already persistent)")
+	return nil
+}
