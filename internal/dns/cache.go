@@ -124,3 +124,30 @@ func (c *Cache) refresh(host string) {
 	if e, ok := c.store[host]; ok {
 		e.refreshing = true
 	}
+	c.mu.Unlock()
+
+	newAddrs, err := c.resolver.LookupHost(context.Background(), host)
+	if err != nil {
+		c.mu.Lock()
+		if e, ok := c.store[host]; ok {
+			e.refreshing = false
+		}
+		c.mu.Unlock()
+		return
+	}
+
+	now := time.Now()
+	c.mu.Lock()
+	if e, ok := c.store[host]; ok {
+		e.addrs = newAddrs
+		e.expires = now.Add(c.ttl)
+		e.refreshAt = now.Add(c.ttl * 4 / 5)
+		e.refreshing = false
+	}
+	c.mu.Unlock()
+}
+
+func (c *Cache) DialContext() func(
+	context.Context, string, string) (net.Conn, error) {
+	dialer := &net.Dialer{
+		Tim
