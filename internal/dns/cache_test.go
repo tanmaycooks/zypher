@@ -33,4 +33,37 @@ func TestDNSCacheStaleWhileRevalidate(t *testing.T) {
 		t.Fatalf("stale-while-revalidate lookup failed: %v", err)
 	}
 	if len(addrs3) == 0 {
-		t
+		t.Fatal("stale-while-revalidate returned empty")
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	cache.mu.RLock()
+	e, ok := cache.store["localhost"]
+	cache.mu.RUnlock()
+	if !ok {
+		t.Fatal("entry not found after refresh")
+	}
+	if e.refreshing {
+		t.Error("entry should not be marked as refreshing after refresh completes")
+	}
+}
+func TestDNSCacheDialContext(t *testing.T) {
+	cache := New(5 * time.Minute)
+	dialFunc := cache.DialContext()
+
+	if dialFunc == nil {
+		t.Fatal("DialContext returned nil function")
+	}
+
+	conn, err := dialFunc(context.Background(), "tcp", "localhost:80")
+	if err != nil {
+
+		t.Logf("dial failed (expected if port 80 not open): %v", err)
+	} else // First lookup — synchronous resolve
+
+	// Immediate second lookup — should hit cache
+	// Wait for 80% of TTL to trigger background refresh
+	// This lookup should trigger background refresh but return stale data
+
+	// Wait for background refresh to complete
