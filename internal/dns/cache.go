@@ -107,4 +107,20 @@ func (c *Cache) resolve(ctx context.Context, host string) ([]string, error) {
 		refreshAt: now.Add(c.ttl * 4 / 5),
 	}
 
-	c.mu.
+	c.mu.Lock()
+	c.store[host] = e
+	c.mu.Unlock()
+
+	return addrs, nil
+}
+
+func (c *Cache) refresh(host string) {
+	c.mu.Lock()
+	if e, ok := c.store[host]; ok && e.refreshing {
+		c.mu.Unlock()
+		return
+	}
+
+	if e, ok := c.store[host]; ok {
+		e.refreshing = true
+	}
