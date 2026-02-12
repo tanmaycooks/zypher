@@ -95,4 +95,16 @@ func (c *Cache) Lookup(ctx context.Context, host string) ([]string, error) {
 }
 
 func (c *Cache) resolve(ctx context.Context, host string) ([]string, error) {
-	add
+	addrs, err := c.resolver.LookupHost(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	e := &entry{
+		addrs:     addrs,
+		expires:   now.Add(c.ttl),
+		refreshAt: now.Add(c.ttl * 4 / 5),
+	}
+
+	c.mu.
