@@ -94,4 +94,5 @@ func (c *Cache) Lookup(ctx context.Context, host string) ([]string, error) {
 	return c.resolve(ctx, host)
 }
 
-fu
+func (c *Cache) resolve(ctx context.Context, host string) ([]string, error) {
+	add
