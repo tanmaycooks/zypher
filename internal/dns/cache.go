@@ -150,4 +150,23 @@ func (c *Cache) refresh(host string) {
 func (c *Cache) DialContext() func(
 	context.Context, string, string) (net.Conn, error) {
 	dialer := &net.Dialer{
-		Tim
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return dialer.DialContext(ctx, network, addr)
+		}
+
+		addrs, err := c.Lookup(ctx, host)
+		if err != nil {
+
+			return dialer.DialContext(ctx, network, addr)
+		}
+
+		ip := addrs[rand.Intn(len(addrs))]
+		return dialer.DialContext(ctx, network, net.JoinHostPort(ip, port))
+	}
+}
