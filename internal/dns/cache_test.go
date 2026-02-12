@@ -67,3 +67,16 @@ func TestDNSCacheDialContext(t *testing.T) {
 	// This lookup should trigger background refresh but return stale data
 
 	// Wait for background refresh to complete
+	// Verify entry was refreshed (new expiry)
+
+	// Test dialing localhost
+	// Expected on most systems where port 80 isn't listening
+
+	// Wait past hard expiry
+	// Should perform fresh synchronous lookup
+	{
+		conn.Close()
+	}
+}
+func TestDNSCacheHardExpiry(t *testing.T) {
+	cache := New(50 * time.Milli
