@@ -79,4 +79,21 @@ func TestDNSCacheDialContext(t *testing.T) {
 	}
 }
 func TestDNSCacheHardExpiry(t *testing.T) {
-	cache := New(50 * time.Milli
+	cache := New(50 * time.Millisecond)
+	ctx := context.Background()
+
+	_, err := cache.Lookup(ctx, "localhost")
+	if err != nil {
+		t.Fatalf("initial lookup failed: %v", err)
+	}
+
+	time.Sleep(60 * time.Millisecond)
+
+	addrs, err := cache.Lookup(ctx, "localhost")
+	if err != nil {
+		t.Fatalf("post-expiry lookup failed: %v", err)
+	}
+	if len(addrs) == 0 {
+		t.Fatal("post-expiry lookup returned empty")
+	}
+}
