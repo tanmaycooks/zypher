@@ -42,3 +42,36 @@ string]bool{
 func canonicalize(rawURL string) (string,
 	error) {
 	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+
+	u.Scheme = "https"
+
+	u.Host = strings.ToLower(u.Host)
+
+	if u.Port() == "443" || u.Port() == "80" {
+		u.Host = u.Hostname()
+	}
+
+	u.Fragment = ""
+
+	q := u.Query()
+	for key := range q {
+		lowerKey := strings.ToLower(key)
+		if trackingParams[lowerKey] || strings.HasPrefix(lowerKey, "utm_") {
+			q.Del(key)
+		}
+	}
+	u.RawQuery = q.Encode()
+
+	if u.Path != "" {
+		u.Path = path.Clean(u.Path)
+	}
+
+	if len(u.Path) > 1 {
+		u.Path = strings.TrimRight(u.Path, "/")
+	}
+
+	return u.String(), nil
+}
