@@ -188,4 +188,13 @@ func (dq *DomainQueue) CleanupEmptyDomains(ctx context.Context) error {
 
 	for _, d := range domains {
 		size, err := dq.client.ZCard(ctx, domainQueuePrefix+d).Result()
-		if 
+		if err != nil || size == 0 {
+			dq.client.SRem(ctx, domainIndexKey, d)
+		}
+	}
+	return nil
+}
+func (dq *DomainQueue) ScheduleTick(ctx context.
+	Context, batchSize int64, processor func(ctx context.Context, urls []string) error) error {
+
+	urls, err := dq.PopBatch(ct
