@@ -197,4 +197,15 @@ func (dq *DomainQueue) CleanupEmptyDomains(ctx context.Context) error {
 func (dq *DomainQueue) ScheduleTick(ctx context.
 	Context, batchSize int64, processor func(ctx context.Context, urls []string) error) error {
 
-	urls, err := dq.PopBatch(ct
+	urls, err := dq.PopBatch(ctx, batchSize)
+	if err != nil {
+		return fmt.Errorf("pop batch: %w", err)
+	}
+
+	if len(urls) == 0 {
+		time.Sleep(100 * time.Millisecond)
+		return nil
+	}
+
+	return processor(ctx, urls)
+}
