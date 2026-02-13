@@ -118,4 +118,49 @@ func (dq *DomainQueue) PopBatch(ctx context.Context, totalCount int64) ([]string
 		return nil, nil
 	}
 
-	urls := make([]string, 0, tota
+	urls := make([]string, 0, totalCount)
+	pipe := dq.client.Pipeline()
+
+	for _, ds := range sizes {
+		budget := int64(float64(ds.size) / float64(totalSize) * float64(totalCount))
+		if budget < 1 {
+			budget = 1
+		}
+
+		results, err := dq.client.ZPopMax(ctx, domainQueuePrefix+ds.domain, budget).Result()
+		if err != nil {
+			dq.logger.Warn("domain pop failed", "domain", ds.domain, "error", err)
+			continue
+		}
+		for _, z := range results {
+			if s, ok := z.Member.(string); ok {
+				urls = append(urls, s)
+			}
+		}
+	}
+
+	pipe.Exec(ctx)
+
+	return urls, nil
+}
+
+func (dq *DomainQueue) DomainSizes(ctx context.
+	Context) ([]DomainInfo, error) {
+	domains, err := dq.client.SMembers(ctx, domainIndexKey).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	infos := make([]DomainInfo, 0, len(domains))
+	for _, d := range domains {
+		size, err := dq.client.ZCard(ctx, domainQueuePrefix+d).Result()
+		if err != nil {
+			continue
+		}
+		if size > 0 {
+			infos = append(infos, DomainInfo{Domain: d, QueueSize: size})
+		}
+	}
+
+	sort.Slice(infos, func(i, j int) bool {
+		return infos[i].QueueSize > infos[j].QueueSi
