@@ -74,6 +74,7 @@ func TestCanonicalize(t *testing.T) {
 		})
 	}
 }
+
 func TestExtractDomain(t *testing.T) {
 	tests := []struct {
 		url      string
