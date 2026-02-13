@@ -103,4 +103,19 @@ func (dq *DomainQueue) PopBatch(ctx context.Context, totalCount int64) ([]string
 		size   int64
 	}
 	sizes := make([]domainSize, 0, len(domains))
-	totalSize := int64
+	totalSize := int64(0)
+
+	for _, d := range domains {
+		size, err := dq.client.ZCard(ctx, domainQueuePrefix+d).Result()
+		if err != nil || size == 0 {
+			continue
+		}
+		sizes = append(sizes, domainSize{d, size})
+		totalSize += size
+	}
+
+	if totalSize == 0 {
+		return nil, nil
+	}
+
+	urls := make([]string, 0, tota
