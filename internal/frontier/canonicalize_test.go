@@ -76,4 +76,19 @@ func TestCanonicalize(t *testing.T) {
 }
 func TestExtractDomain(t *testing.T) {
 	tests := []struct {
-		url   
+		url      string
+		expected string
+	}{
+		{"https://www.example.com/page", "example.com"},
+		{"https://example.com/page", "example.com"},
+		{"https://sub.example.com/page", "sub.example.com"},
+		{"invalid-url", ""},
+	}
+
+	for _, tt := range tests {
+		result := extractDomain(tt.url)
+		if result != tt.expected {
+			t.Errorf("extractDomain(%q) = %q, want %q", tt.url, result, tt.expected)
+		}
+	}
+}
