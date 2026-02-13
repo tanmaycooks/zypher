@@ -187,4 +187,5 @@ func (dq *DomainQueue) CleanupEmptyDomains(ctx context.Context) error {
 	}
 
 	for _, d := range domains {
-		size, err := dq.client.ZCard(ctx, do
+		size, err := dq.client.ZCard(ctx, domainQueuePrefix+d).Result()
+		if 
