@@ -1,13 +1,17 @@
+// E-04: Domain-isolated priority queues for the frontier.
+// Each domain gets its own Redis sorted set, with a meta-scheduler
+// that allocates crawl budget proportionally to domain queue sizes.
 package frontier
 
 import (
 	"context"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"log/slog"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -15,51 +19,16 @@ const (
 	domainIndexKey    = "frontier:domains"
 )
 
+// DomainQueue provides per-domain URL isolation to prevent a single large
+// domain from starving smaller domains in the global queue.
 type DomainQueue struct {
-	client *redis.
-		Client
-	logger *slog.
-		Logger
-	mu sync.
-		RWMutex
-	budgets map[ // E-04: Domain-isolated priority queues for the frontier.
-
-	// Each domain gets its own Redis sorted set, with a meta-scheduler
-
-	// that allocates crawl budget proportionally to domain queue sizes.
-	// DomainQueue provides per-domain URL isolation to prevent a single large
-	// domain from starving smaller domains in the global queue.
-
-	// domain → crawl budget per round
-	// NewDomainQueue creates a new domain-isolated frontier.
-
-	// Push adds a URL to its domain-specific sorted set.
-	// track known domains
-	// PopBatch retrieves URLs from multiple domains proportionally.
-
-	// Each domain gets a share of the batch based on its queue size.
-
-	// Get all domains with pending URLs
-	// Get queue sizes for budget allocation
-
-	// Allocate budget proportionally
-	// Clean up empty domains
-	// DomainSizes returns per-domain queue sizes sorted by size (largest first).
-	// Useful for monitoring and dashboard display.
-
-	// DomainInfo holds domain queue metrics.
-
-	// SetBudget configures the per-round crawl budget for a domain.
-
-	// CleanupEmptyDomains removes domains with empty queues from the index.
-	// ScheduleTick runs one round of the meta-scheduler, dispatching URLs from
-
-	// all domain queues according to budgets.
-
-	// back off when empty
-	string]int
+	client  *redis.Client
+	logger  *slog.Logger
+	mu      sync.RWMutex
+	budgets map[string]int // domain → crawl budget per round
 }
 
+// NewDomainQueue creates a new domain-isolated frontier.
 func NewDomainQueue(client *redis.Client, logger *slog.Logger) *DomainQueue {
 	if logger == nil {
 		logger = slog.Default()
@@ -71,6 +40,7 @@ func NewDomainQueue(client *redis.Client, logger *slog.Logger) *DomainQueue {
 	}
 }
 
+// Push adds a URL to its domain-specific sorted set.
 func (dq *DomainQueue) Push(ctx context.Context, rawURL string, score float64) error {
 	canonical, err := canonicalize(rawURL)
 	if err != nil {
@@ -82,13 +52,15 @@ func (dq *DomainQueue) Push(ctx context.Context, rawURL string, score float64) e
 
 	pipe := dq.client.Pipeline()
 	pipe.ZAdd(ctx, key, redis.Z{Score: score, Member: canonical})
-	pipe.SAdd(ctx, domainIndexKey, domain)
+	pipe.SAdd(ctx, domainIndexKey, domain) // track known domains
 	_, err = pipe.Exec(ctx)
 	return err
 }
 
+// PopBatch retrieves URLs from multiple domains proportionally.
+// Each domain gets a share of the batch based on its queue size.
 func (dq *DomainQueue) PopBatch(ctx context.Context, totalCount int64) ([]string, error) {
-
+	// Get all domains with pending URLs
 	domains, err := dq.client.SMembers(ctx, domainIndexKey).Result()
 	if err != nil {
 		return nil, err
@@ -98,6 +70,7 @@ func (dq *DomainQueue) PopBatch(ctx context.Context, totalCount int64) ([]string
 		return nil, nil
 	}
 
+	// Get queue sizes for budget allocation
 	type domainSize struct {
 		domain string
 		size   int64
@@ -118,6 +91,7 @@ func (dq *DomainQueue) PopBatch(ctx context.Context, totalCount int64) ([]string
 		return nil, nil
 	}
 
+	// Allocate budget proportionally
 	urls := make([]string, 0, totalCount)
 	pipe := dq.client.Pipeline()
 
@@ -139,13 +113,15 @@ func (dq *DomainQueue) PopBatch(ctx context.Context, totalCount int64) ([]string
 		}
 	}
 
+	// Clean up empty domains
 	pipe.Exec(ctx)
 
 	return urls, nil
 }
 
-func (dq *DomainQueue) DomainSizes(ctx context.
-	Context) ([]DomainInfo, error) {
+// DomainSizes returns per-domain queue sizes sorted by size (largest first).
+// Useful for monitoring and dashboard display.
+func (dq *DomainQueue) DomainSizes(ctx context.Context) ([]DomainInfo, error) {
 	domains, err := dq.client.SMembers(ctx, domainIndexKey).Result()
 	if err != nil {
 		return nil, err
@@ -169,17 +145,20 @@ func (dq *DomainQueue) DomainSizes(ctx context.
 	return infos, nil
 }
 
+// DomainInfo holds domain queue metrics.
 type DomainInfo struct {
 	Domain    string
 	QueueSize int64
 }
 
+// SetBudget configures the per-round crawl budget for a domain.
 func (dq *DomainQueue) SetBudget(domain string, budget int) {
 	dq.mu.Lock()
 	dq.budgets[domain] = budget
 	dq.mu.Unlock()
 }
 
+// CleanupEmptyDomains removes domains with empty queues from the index.
 func (dq *DomainQueue) CleanupEmptyDomains(ctx context.Context) error {
 	domains, err := dq.client.SMembers(ctx, domainIndexKey).Result()
 	if err != nil {
@@ -194,8 +173,11 @@ func (dq *DomainQueue) CleanupEmptyDomains(ctx context.Context) error {
 	}
 	return nil
 }
-func (dq *DomainQueue) ScheduleTick(ctx context.
-	Context, batchSize int64, processor func(ctx context.Context, urls []string) error) error {
+
+// ScheduleTick runs one round of the meta-scheduler, dispatching URLs from
+// all domain queues according to budgets.
+func (dq *DomainQueue) ScheduleTick(ctx context.Context, batchSize int64,
+	processor func(ctx context.Context, urls []string) error) error {
 
 	urls, err := dq.PopBatch(ctx, batchSize)
 	if err != nil {
@@ -203,7 +185,7 @@ func (dq *DomainQueue) ScheduleTick(ctx context.
 	}
 
 	if len(urls) == 0 {
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond) // back off when empty
 		return nil
 	}
 
