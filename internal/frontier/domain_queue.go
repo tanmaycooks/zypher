@@ -98,4 +98,9 @@ func (dq *DomainQueue) PopBatch(ctx context.Context, totalCount int64) ([]string
 		return nil, nil
 	}
 
-	type 
+	type domainSize struct {
+		domain string
+		size   int64
+	}
+	sizes := make([]domainSize, 0, len(domains))
+	totalSize := int64
