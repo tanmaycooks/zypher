@@ -163,4 +163,28 @@ func (dq *DomainQueue) DomainSizes(ctx context.
 	}
 
 	sort.Slice(infos, func(i, j int) bool {
-		return infos[i].QueueSize > infos[j].QueueSi
+		return infos[i].QueueSize > infos[j].QueueSize
+	})
+
+	return infos, nil
+}
+
+type DomainInfo struct {
+	Domain    string
+	QueueSize int64
+}
+
+func (dq *DomainQueue) SetBudget(domain string, budget int) {
+	dq.mu.Lock()
+	dq.budgets[domain] = budget
+	dq.mu.Unlock()
+}
+
+func (dq *DomainQueue) CleanupEmptyDomains(ctx context.Context) error {
+	domains, err := dq.client.SMembers(ctx, domainIndexKey).Result()
+	if err != nil {
+		return err
+	}
+
+	for _, d := range domains {
+		size, err := dq.client.ZCard(ctx, do
