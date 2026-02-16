@@ -128,4 +128,16 @@ func (f *Frontier) PopBatch(ctx context.Context, count int64) ([]string, error) 
 }
 
 func (f *Frontier) Len(ctx context.Context) (int64, error) {
-	return f.client.ZCard(ctx, fron
+	return f.client.ZCard(ctx, frontierKey).Result()
+}
+
+func priorityScore(importance float64, lastSeen time.Time,
+	weight float64) float64 {
+	staleHours := time.Since(lastSeen).Hours()
+	if staleHours < 0 {
+		staleHours = 0
+	}
+	return importance * math.Log1p(staleHours) * weight
+}
+
+func (f *Frontier) do
