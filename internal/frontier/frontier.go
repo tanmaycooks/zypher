@@ -146,4 +146,5 @@ func (f *Frontier) domainWeight(domain string) float64 {
 	}
 	return 1.0
 }
-func extractDomain(rawURL stri
+func extractDomain(rawURL string) string {
+	u, err := url.Parse(rawURL)
