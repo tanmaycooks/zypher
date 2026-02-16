@@ -87,4 +87,13 @@ func (al *AdaptiveLimiter) OnSuccess() {
 		current := al.ceiling.Load()
 		newCeil := current + 1
 		if newCeil > al.maxConcur {
-	
+			newCeil = al.maxConcur
+		}
+		if al.ceiling.CompareAndSwap(current, newCeil) {
+			return
+		}
+	}
+}
+func (al *AdaptiveLimiter) OnFailure() {
+	for {
+		current
