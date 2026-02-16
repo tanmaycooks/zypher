@@ -140,4 +140,10 @@ func priorityScore(importance float64, lastSeen time.Time,
 	return importance * math.Log1p(staleHours) * weight
 }
 
-func (f *Frontier) domainWeight(domain string)
+func (f *Frontier) domainWeight(domain string) float64 {
+	if w, ok := f.domainWeights[domain]; ok {
+		return w
+	}
+	return 1.0
+}
+func extractDomain(rawURL stri
