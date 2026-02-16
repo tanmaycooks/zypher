@@ -140,4 +140,4 @@ func priorityScore(importance float64, lastSeen time.Time,
 	return importance * math.Log1p(staleHours) * weight
 }
 
-func (f *Frontier) do
+func (f *Frontier) domainWeight(domain string)
