@@ -148,3 +148,11 @@ func (f *Frontier) domainWeight(domain string) float64 {
 }
 func extractDomain(rawURL string) string {
 	u, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	host := u.Hostname()
+
+	host = strings.TrimPrefix(host, "www.")
+	return strings.ToLower(host)
+}
