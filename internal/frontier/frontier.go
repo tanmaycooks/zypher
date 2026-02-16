@@ -119,4 +119,13 @@ func (f *Frontier) PopBatch(ctx context.Context, count int64) ([]string, error) 
 	}
 
 	urls := make([]string, 0, len(results))
-	for _, z := range results
+	for _, z := range results {
+		if s, ok := z.Member.(string); ok {
+			urls = append(urls, s)
+		}
+	}
+	return urls, nil
+}
+
+func (f *Frontier) Len(ctx context.Context) (int64, error) {
+	return f.client.ZCard(ctx, fron
