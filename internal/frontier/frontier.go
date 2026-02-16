@@ -103,4 +103,4 @@ func (f *Frontier) Push(ctx context.Context, rawURL string,
 func (f *Frontier) PushWithScore(ctx context.Context, rawURL string, score float64) error {
 	canonical, err := canonicalize(rawURL)
 	if err != nil {
-		return fmt.Errorf("canonicalize %q
+		return fmt.Errorf("canonicalize %q: %w", ra
