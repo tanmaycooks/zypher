@@ -82,4 +82,9 @@ func (al *AdaptiveLimiter) Acquire() {
 func (al *AdaptiveLimiter) Release() {
 	al.inFlight.Add(-1)
 }
-func (al *Adapt
+func (al *AdaptiveLimiter) OnSuccess() {
+	for {
+		current := al.ceiling.Load()
+		newCeil := current + 1
+		if newCeil > al.maxConcur {
+	
