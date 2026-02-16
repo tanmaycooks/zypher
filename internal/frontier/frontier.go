@@ -103,4 +103,20 @@ func (f *Frontier) Push(ctx context.Context, rawURL string,
 func (f *Frontier) PushWithScore(ctx context.Context, rawURL string, score float64) error {
 	canonical, err := canonicalize(rawURL)
 	if err != nil {
-		return fmt.Errorf("canonicalize %q: %w", ra
+		return fmt.Errorf("canonicalize %q: %w", rawURL, err)
+	}
+
+	return f.client.ZAdd(ctx, frontierKey, redis.Z{
+		Score:  score,
+		Member: canonical,
+	}).Err()
+}
+
+func (f *Frontier) PopBatch(ctx context.Context, count int64) ([]string, error) {
+	results, err := f.client.ZPopMax(ctx, frontierKey, count).Result()
+	if err != nil {
+		return nil, fmt.Errorf("pop batch: %w", err)
+	}
+
+	urls := make([]string, 0, len(results))
+	for _, z := range results
