@@ -59,4 +59,28 @@ func TestAdaptiveLimiterMaxConcur(t *testing.T) {
 		al.OnSuccess()
 	}
 	if al.Ceiling() != 5 {
-		t.Errorf("ceiling should not exceed max = %d, want 5", al.Ce
+		t.Errorf("ceiling should not exceed max = %d, want 5", al.Ceiling())
+	}
+}
+func BenchmarkAIMDLimiterConcurrent(b *testing.B) {
+	al := NewAdaptiveLimiter(10, 50)
+	var maxSeen atomic.Int64
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			al.Acquire()
+			current := al.InFlight()
+			for {
+				old := maxSeen.Load()
+				if current <= old {
+					break
+				}
+				if maxSeen.CompareAndSwap(old, current) {
+					break
+				}
+			}
+
+			if current > al.Ceiling()+1 {
+				b.Errorf("inFlight %d exceeded ceiling %d", current, al.Ceiling())
+			}
+			al.Rel
