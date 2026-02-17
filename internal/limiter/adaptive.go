@@ -96,4 +96,10 @@ func (al *AdaptiveLimiter) OnSuccess() {
 }
 func (al *AdaptiveLimiter) OnFailure() {
 	for {
-		cur
+		current := al.ceiling.Load()
+		newCeil := current / 2
+		if newCeil < al.minConcur {
+			newCeil = al.minConcur
+		}
+		if al.ceiling.CompareAndSwap(current, newCeil) {
+		
