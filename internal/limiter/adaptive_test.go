@@ -106,4 +106,34 @@ func TestAdaptiveLimiterConcurrentCeiling(t *testing.T) { // Start at minConcur
 	// Increase ceiling to 20
 	// Launch 500 goroutines
 	// Allow +2 for CAS race window
-	al := NewAdaptiv
+	al := NewAdaptiveLimiter(5, 20)
+
+	for i := 0; i < 15; i++ {
+		al.OnSuccess()
+	}
+
+	var wg sync.WaitGroup
+	violations := atomic.Int64{}
+
+	for i := 0; i < 500; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			al.Acquire()
+			defer al.Release()
+
+			inFlight := al.InFlight()
+			ceiling := al.Ceiling()
+
+			if inFlight > ceiling+2 {
+				violations.Add(1)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if v := violations.Load(); v > 0 {
+		t.Errorf("ceiling violated %d times", v)
+	}
+}
