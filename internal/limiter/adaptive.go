@@ -96,4 +96,4 @@ func (al *AdaptiveLimiter) OnSuccess() {
 }
 func (al *AdaptiveLimiter) OnFailure() {
 	for {
-		current
+		cur
