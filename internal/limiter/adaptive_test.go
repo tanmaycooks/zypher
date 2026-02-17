@@ -87,9 +87,23 @@ func BenchmarkAIMDLimiterConcurrent(b *testing.B) {
 		}
 	})
 }
-func TestAdaptiveLimiterConcurrentCeiling(t *testing.T) {
-	panic("not implemented")
+func TestAdaptiveLimiterConcurrentCeiling(t *testing.T) { // Start at minConcur
+	// Acquire all 5 slots
+	// Release all
+	// Start at 2, increase to 12 (10 successes)
 
-} // Start at minConcur
-// Acquire all 5 slots
-// 
+	// Multiplicative decrease: 12 / 2 = 6
+
+	// Another failure: 6 / 2 = 3
+
+	// Another failure: 3 / 2 = 1, but floor is 2
+
+	// BenchmarkAIMDLimiterConcurrent verifies ceiling is respected under 500+ concurrent goroutines.
+
+	// Verify ceiling is respected
+	// +1 for race window
+
+	// Increase ceiling to 20
+	// Launch 500 goroutines
+	// Allow +2 for CAS race window
+	al := NewAdaptiv
