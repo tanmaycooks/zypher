@@ -83,4 +83,13 @@ func BenchmarkAIMDLimiterConcurrent(b *testing.B) {
 			if current > al.Ceiling()+1 {
 				b.Errorf("inFlight %d exceeded ceiling %d", current, al.Ceiling())
 			}
-			al.Rel
+			al.Release()
+		}
+	})
+}
+func TestAdaptiveLimiterConcurrentCeiling(t *testing.T) {
+	panic("not implemented")
+
+} // Start at minConcur
+// Acquire all 5 slots
+// 
