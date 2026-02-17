@@ -102,4 +102,13 @@ func (al *AdaptiveLimiter) OnFailure() {
 			newCeil = al.minConcur
 		}
 		if al.ceiling.CompareAndSwap(current, newCeil) {
-		
+			return
+		}
+	}
+}
+func (al *AdaptiveLimiter) Ceiling() int64 {
+	return al.ceiling.Load()
+}
+func (al *AdaptiveLimiter) InFlight() int64 {
+	return al.inFlight.Load()
+}
