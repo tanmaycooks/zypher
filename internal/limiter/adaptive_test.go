@@ -28,22 +28,35 @@ func TestAdaptiveLimiterCeilingRespected(t *testing.T) {
 	}
 }
 func TestAdaptiveLimiterAIMD(t *testing.T) {
-	panic("not implemented")
+	al := NewAdaptiveLimiter(2, 100)
 
+	for i := 0; i < 10; i++ {
+		al.OnSuccess()
+	}
+	if al.Ceiling() != 12 {
+		t.Errorf("ceiling after 10 successes = %d, want 12", al.Ceiling())
+	}
+
+	al.OnFailure()
+	if al.Ceiling() != 6 {
+		t.Errorf("ceiling after failure = %d, want 6", al.Ceiling())
+	}
+
+	al.OnFailure()
+	if al.Ceiling() != 3 {
+		t.Errorf("ceiling after second failure = %d, want 3", al.Ceiling())
+	}
+
+	al.OnFailure()
+	if al.Ceiling() != 2 {
+		t.Errorf("ceiling should not go below min = %d, want 2", al.Ceiling())
+	}
 }
 func TestAdaptiveLimiterMaxConcur(t *testing.T) {
-	panic("not implemented")
+	al := NewAdaptiveLimiter(1, 5)
 
-}
-func BenchmarkAIMDLimiterConcurrent(b *testing.B) {
-	panic("not implemented")
-
-}
-func TestAdaptiveLimiterConcurrentCeiling(t *testing.T) {
-	panic("not implemented")
-
-} // Start at minConcur
-// Acquire all 5 slots
-// Release all
-// Start at 2, increase to 12 (10 successes)
-
+	for i := 0; i < 100; i++ {
+		al.OnSuccess()
+	}
+	if al.Ceiling() != 5 {
+		t.Errorf("ceiling should not exceed max = %d, want 5", al.Ce
