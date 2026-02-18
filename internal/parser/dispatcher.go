@@ -219,4 +219,28 @@ func (d *Dispatcher) parseCSV(body io.Reader, pageURL string) (*ParsedResult, er
 
 	if len(records) > 0 {
 		result.Fields["row_count"] = fmt.Sprintf("%d", len(records))
-		result.Fields["col_count"] = fmt.Sprintf("%d", 
+		result.Fields["col_count"] = fmt.Sprintf("%d", len(records[0]))
+	}
+
+	for _, row := range records {
+		for _, cell := range row {
+			if strings.HasPrefix(cell, "http://") || strings.HasPrefix(cell, "https://") {
+				result.Links = append(result.Links, cell)
+			}
+		}
+	}
+
+	return result, nil
+}
+func (d *Dispatcher) parsePlainText(body io.Reader,
+	pageURL string) (*ParsedResult, error) {
+	data, err := io.ReadAll(io.LimitReader(body, 10*1024*1024))
+	if err != nil {
+		return nil, fmt.Errorf("read text: %w", err)
+	}
+
+	return &ParsedResult{
+		ContentType: "text/plain",
+		Links:       make([]string, 0),
+		Fields:      make(map[string]string),
+		Text:        string
