@@ -271,4 +271,10 @@ func extractDomainFromURL(rawURL string) string {
 	if len(parts) < 2 {
 		return ""
 	}
-	host := strings.SplitN(parts[1], 
+	host := strings.SplitN(parts[1], "/", 2)[0]
+	host = strings.SplitN(host, ":", 2)[0]
+	return strings.TrimPrefix(strings.ToLower(host), "www.")
+}
+func DetectContentType(resp *http.
+	Response) string {
+	ct := resp.Header.Get("Conte
