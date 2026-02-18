@@ -1,3 +1,6 @@
+// Package parser provides content-type aware parsing dispatch.
+// E-05: Dispatches to the correct parser based on Content-Type header.
+// E-08: goquery-based CSS selector extraction from YAML rules.
 package parser
 
 import (
@@ -5,74 +8,39 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
+// ParsedResult holds the output of a parse operation.
 type ParsedResult struct {
-	Links []string // Package parser provides content-type aware parsing dispatch.
-
-	// E-05: Dispatches to the correct parser based on Content-Type header.
-
-	// E-08: goquery-based CSS selector extraction from YAML rules.
-
-	// ParsedResult holds the output of a parse operation.
-	// extracted links
-	// extracted structured fields
-	// detected content type
-	// page title (if HTML)
-	// main text content
-	// Dispatcher routes parsing to the correct handler based on Content-Type.
-	//
-	// E-05: Supports HTML, JSON, XML, RSS/Atom, CSV, and plain text.
-	// Each content type gets a specialized parser that extracts maximum value.
-
-	// domain → rules
-
-	// ExtractionRule defines a CSS selector-based extraction from YAML config.
-	// E-08: Pre-compiled at startup from config/extraction_rules.yaml.
-	// "text" or HTML attribute name
-	// NewDispatcher creates a parser dispatcher with optional extraction rules.
-
-	// Dispatch parses content based on its Content-Type.
-	// Normalize content type
-	// parseHTML extracts links, title, and structured fields from HTML.
-	// Extract title
-	// Extract links
-	// E-08: Apply domain-specific CSS extraction rules
-	// Extract main text content
-	// parseJSON extracts links and fields from JSON responses.
-
-	// Attempt to extract links from JSON
-	// parseXML extracts links from XML/RSS/Atom feeds.
-	// Try parsing as RSS/Atom
-	// parseCSV reads CSV data and returns it as structured fields.
-
-	// Extract URLs from CSV cells
-	// parsePlainText handles plain text responses.
-
-	// extractLinksFromJSON recursively extracts URLs from JSON structures.
-	// extractDomainFromURL extracts the domain from a URL string.
-	// DetectContentType auto-detects content type from response headers and sniffing.
-	// Fall back to content sniffing
-	// default assumption for web pages
-
-	Fields      map[string]string
-	ContentType string
-	Title       string
-	Text        string
+	Links       []string          // extracted links
+	Fields      map[string]string // extracted structured fields
+	ContentType string            // detected content type
+	Title       string            // page title (if HTML)
+	Text        string            // main text content
 }
+
+// Dispatcher routes parsing to the correct handler based on Content-Type.
+//
+// E-05: Supports HTML, JSON, XML, RSS/Atom, CSV, and plain text.
+// Each content type gets a specialized parser that extracts maximum value.
 type Dispatcher struct {
-	extractionRules map[string][]ExtractionRule
+	extractionRules map[string][]ExtractionRule // domain → rules
 }
+
+// ExtractionRule defines a CSS selector-based extraction from YAML config.
+// E-08: Pre-compiled at startup from config/extraction_rules.yaml.
 type ExtractionRule struct {
 	Name     string `yaml:"name"`
 	Selector string `yaml:"selector"`
-	Attr     string `yaml:"attr,omitempty"`
+	Attr     string `yaml:"attr,omitempty"` // "text" or HTML attribute name
 }
 
+// NewDispatcher creates a parser dispatcher with optional extraction rules.
 func NewDispatcher(rules map[string][]ExtractionRule) *Dispatcher {
 	if rules == nil {
 		rules = make(map[string][]ExtractionRule)
@@ -80,8 +48,9 @@ func NewDispatcher(rules map[string][]ExtractionRule) *Dispatcher {
 	return &Dispatcher{extractionRules: rules}
 }
 
+// Dispatch parses content based on its Content-Type.
 func (d *Dispatcher) Dispatch(contentType string, body io.Reader, url string) (*ParsedResult, error) {
-
+	// Normalize content type
 	mediaType := strings.ToLower(strings.Split(contentType, ";")[0])
 	mediaType = strings.TrimSpace(mediaType)
 
@@ -99,6 +68,7 @@ func (d *Dispatcher) Dispatch(contentType string, body io.Reader, url string) (*
 	}
 }
 
+// parseHTML extracts links, title, and structured fields from HTML.
 func (d *Dispatcher) parseHTML(body io.Reader, pageURL string) (*ParsedResult, error) {
 	doc, err := goquery.NewDocumentFromReader(body)
 	if err != nil {
@@ -111,8 +81,10 @@ func (d *Dispatcher) parseHTML(body io.Reader, pageURL string) (*ParsedResult, e
 		Fields:      make(map[string]string),
 	}
 
+	// Extract title
 	result.Title = doc.Find("title").First().Text()
 
+	// Extract links
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
 		href, exists := s.Attr("href")
 		if exists && href != "" && !strings.HasPrefix(href, "#") && !strings.HasPrefix(href, "javascript:") {
@@ -120,6 +92,7 @@ func (d *Dispatcher) parseHTML(body io.Reader, pageURL string) (*ParsedResult, e
 		}
 	})
 
+	// E-08: Apply domain-specific CSS extraction rules
 	domain := extractDomainFromURL(pageURL)
 	if rules, ok := d.extractionRules[domain]; ok {
 		for _, rule := range rules {
@@ -134,11 +107,13 @@ func (d *Dispatcher) parseHTML(body io.Reader, pageURL string) (*ParsedResult, e
 		}
 	}
 
+	// Extract main text content
 	result.Text = strings.TrimSpace(doc.Find("body").Text())
 
 	return result, nil
 }
 
+// parseJSON extracts links and fields from JSON responses.
 func (d *Dispatcher) parseJSON(body io.Reader, pageURL string) (*ParsedResult, error) {
 	data, err := io.ReadAll(io.LimitReader(body, 10*1024*1024))
 	if err != nil {
@@ -151,6 +126,7 @@ func (d *Dispatcher) parseJSON(body io.Reader, pageURL string) (*ParsedResult, e
 		Fields:      make(map[string]string),
 	}
 
+	// Attempt to extract links from JSON
 	var jsonData interface{}
 	if err := json.Unmarshal(data, &jsonData); err == nil {
 		result.Links = extractLinksFromJSON(jsonData)
@@ -160,8 +136,8 @@ func (d *Dispatcher) parseJSON(body io.Reader, pageURL string) (*ParsedResult, e
 	return result, nil
 }
 
-func (d *Dispatcher) parseXML(body io.
-	Reader, pageURL string) (*ParsedResult, error) {
+// parseXML extracts links from XML/RSS/Atom feeds.
+func (d *Dispatcher) parseXML(body io.Reader, pageURL string) (*ParsedResult, error) {
 	data, err := io.ReadAll(io.LimitReader(body, 10*1024*1024))
 	if err != nil {
 		return nil, fmt.Errorf("read XML: %w", err)
@@ -173,6 +149,7 @@ func (d *Dispatcher) parseXML(body io.
 		Fields:      make(map[string]string),
 	}
 
+	// Try parsing as RSS/Atom
 	type Link struct {
 		Href string `xml:"href,attr"`
 		Text string `xml:",chardata"`
@@ -204,6 +181,7 @@ func (d *Dispatcher) parseXML(body io.
 	return result, nil
 }
 
+// parseCSV reads CSV data and returns it as structured fields.
 func (d *Dispatcher) parseCSV(body io.Reader, pageURL string) (*ParsedResult, error) {
 	reader := csv.NewReader(body)
 	records, err := reader.ReadAll()
@@ -222,6 +200,7 @@ func (d *Dispatcher) parseCSV(body io.Reader, pageURL string) (*ParsedResult, er
 		result.Fields["col_count"] = fmt.Sprintf("%d", len(records[0]))
 	}
 
+	// Extract URLs from CSV cells
 	for _, row := range records {
 		for _, cell := range row {
 			if strings.HasPrefix(cell, "http://") || strings.HasPrefix(cell, "https://") {
@@ -232,8 +211,9 @@ func (d *Dispatcher) parseCSV(body io.Reader, pageURL string) (*ParsedResult, er
 
 	return result, nil
 }
-func (d *Dispatcher) parsePlainText(body io.Reader,
-	pageURL string) (*ParsedResult, error) {
+
+// parsePlainText handles plain text responses.
+func (d *Dispatcher) parsePlainText(body io.Reader, pageURL string) (*ParsedResult, error) {
 	data, err := io.ReadAll(io.LimitReader(body, 10*1024*1024))
 	if err != nil {
 		return nil, fmt.Errorf("read text: %w", err)
@@ -246,6 +226,8 @@ func (d *Dispatcher) parsePlainText(body io.Reader,
 		Text:        string(data),
 	}, nil
 }
+
+// extractLinksFromJSON recursively extracts URLs from JSON structures.
 func extractLinksFromJSON(data interface{}) []string {
 	links := make([]string, 0)
 
@@ -266,6 +248,8 @@ func extractLinksFromJSON(data interface{}) []string {
 
 	return links
 }
+
+// extractDomainFromURL extracts the domain from a URL string.
 func extractDomainFromURL(rawURL string) string {
 	parts := strings.SplitN(rawURL, "://", 2)
 	if len(parts) < 2 {
@@ -275,12 +259,13 @@ func extractDomainFromURL(rawURL string) string {
 	host = strings.SplitN(host, ":", 2)[0]
 	return strings.TrimPrefix(strings.ToLower(host), "www.")
 }
-func DetectContentType(resp *http.
-	Response) string {
+
+// DetectContentType auto-detects content type from response headers and sniffing.
+func DetectContentType(resp *http.Response) string {
 	ct := resp.Header.Get("Content-Type")
 	if ct != "" {
 		return ct
 	}
-
-	return "text/html"
+	// Fall back to content sniffing
+	return "text/html" // default assumption for web pages
 }
