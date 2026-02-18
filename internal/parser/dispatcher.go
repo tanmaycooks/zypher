@@ -255,3 +255,20 @@ func extractLinksFromJSON(data interface{}) []string {
 			links = append(links, extractLinksFromJSON(val)...)
 		}
 	case []interface{}:
+		for _, val := range v {
+			links = append(links, extractLinksFromJSON(val)...)
+		}
+	case string:
+		if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
+			links = append(links, v)
+		}
+	}
+
+	return links
+}
+func extractDomainFromURL(rawURL string) string {
+	parts := strings.SplitN(rawURL, "://", 2)
+	if len(parts) < 2 {
+		return ""
+	}
+	host := strings.SplitN(parts[1], 
