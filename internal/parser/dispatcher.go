@@ -106,4 +106,6 @@ func (d *Dispatcher) parseHTML(body io.Reader, pageURL string) (*ParsedResult, e
 	}
 
 	result := &ParsedResult{
-		
+		ContentType: "text/html",
+		Links:       make([]string, 0),
+		Fields:      make(map[
