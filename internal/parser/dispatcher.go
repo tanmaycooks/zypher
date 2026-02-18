@@ -183,4 +183,40 @@ func (d *Dispatcher) parseXML(body io.
 	}
 	type Feed struct {
 		Items   []Item `xml:"channel>item"`
-		Entries []Item `xml:"e
+		Entries []Item `xml:"entry"`
+	}
+
+	var feed Feed
+	if err := xml.Unmarshal(data, &feed); err == nil {
+		for _, item := range feed.Items {
+			if item.Link != "" {
+				result.Links = append(result.Links, item.Link)
+			}
+		}
+		for _, entry := range feed.Entries {
+			if entry.Link != "" {
+				result.Links = append(result.Links, entry.Link)
+			}
+		}
+	}
+
+	result.Text = string(data)
+	return result, nil
+}
+
+func (d *Dispatcher) parseCSV(body io.Reader, pageURL string) (*ParsedResult, error) {
+	reader := csv.NewReader(body)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("CSV parse: %w", err)
+	}
+
+	result := &ParsedResult{
+		ContentType: "text/csv",
+		Links:       make([]string, 0),
+		Fields:      make(map[string]string),
+	}
+
+	if len(records) > 0 {
+		result.Fields["row_count"] = fmt.Sprintf("%d", len(records))
+		result.Fields["col_count"] = fmt.Sprintf("%d", 
