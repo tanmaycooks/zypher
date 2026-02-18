@@ -124,4 +124,44 @@ func (d *Dispatcher) parseHTML(body io.Reader, pageURL string) (*ParsedResult, e
 	if rules, ok := d.extractionRules[domain]; ok {
 		for _, rule := range rules {
 			sel := doc.Find(rule.Selector)
-			if rule.Attr == "" || rule.Attr == "
+			if rule.Attr == "" || rule.Attr == "text" {
+				result.Fields[rule.Name] = strings.TrimSpace(sel.First().Text())
+			} else {
+				if val, exists := sel.First().Attr(rule.Attr); exists {
+					result.Fields[rule.Name] = val
+				}
+			}
+		}
+	}
+
+	result.Text = strings.TrimSpace(doc.Find("body").Text())
+
+	return result, nil
+}
+
+func (d *Dispatcher) parseJSON(body io.Reader, pageURL string) (*ParsedResult, error) {
+	data, err := io.ReadAll(io.LimitReader(body, 10*1024*1024))
+	if err != nil {
+		return nil, fmt.Errorf("read JSON: %w", err)
+	}
+
+	result := &ParsedResult{
+		ContentType: "application/json",
+		Links:       make([]string, 0),
+		Fields:      make(map[string]string),
+	}
+
+	var jsonData interface{}
+	if err := json.Unmarshal(data, &jsonData); err == nil {
+		result.Links = extractLinksFromJSON(jsonData)
+	}
+
+	result.Text = string(data)
+	return result, nil
+}
+
+func (d *Dispatcher) parseXML(body io.
+	Reader, pageURL string) (*ParsedResult, error) {
+	data, err := io.ReadAll(io.LimitReader(body, 10*1024*1024))
+	if err != nil {
+		return nil
