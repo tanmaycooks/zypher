@@ -108,4 +108,20 @@ func (d *Dispatcher) parseHTML(body io.Reader, pageURL string) (*ParsedResult, e
 	result := &ParsedResult{
 		ContentType: "text/html",
 		Links:       make([]string, 0),
-		Fields:      make(map[
+		Fields:      make(map[string]string),
+	}
+
+	result.Title = doc.Find("title").First().Text()
+
+	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
+		href, exists := s.Attr("href")
+		if exists && href != "" && !strings.HasPrefix(href, "#") && !strings.HasPrefix(href, "javascript:") {
+			result.Links = append(result.Links, href)
+		}
+	})
+
+	domain := extractDomainFromURL(pageURL)
+	if rules, ok := d.extractionRules[domain]; ok {
+		for _, rule := range rules {
+			sel := doc.Find(rule.Selector)
+			if rule.Attr == "" || rule.Attr == "
