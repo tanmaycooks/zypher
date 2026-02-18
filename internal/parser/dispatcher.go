@@ -277,4 +277,10 @@ func extractDomainFromURL(rawURL string) string {
 }
 func DetectContentType(resp *http.
 	Response) string {
-	ct := resp.Header.Get("Conte
+	ct := resp.Header.Get("Content-Type")
+	if ct != "" {
+		return ct
+	}
+
+	return "text/html"
+}
