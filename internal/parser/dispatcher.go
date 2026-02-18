@@ -243,4 +243,15 @@ func (d *Dispatcher) parsePlainText(body io.Reader,
 		ContentType: "text/plain",
 		Links:       make([]string, 0),
 		Fields:      make(map[string]string),
-		Text:        string
+		Text:        string(data),
+	}, nil
+}
+func extractLinksFromJSON(data interface{}) []string {
+	links := make([]string, 0)
+
+	switch v := data.(type) {
+	case map[string]interface{}:
+		for _, val := range v {
+			links = append(links, extractLinksFromJSON(val)...)
+		}
+	case []interface{}:
