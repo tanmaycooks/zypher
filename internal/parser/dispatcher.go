@@ -164,4 +164,23 @@ func (d *Dispatcher) parseXML(body io.
 	Reader, pageURL string) (*ParsedResult, error) {
 	data, err := io.ReadAll(io.LimitReader(body, 10*1024*1024))
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("read XML: %w", err)
+	}
+
+	result := &ParsedResult{
+		ContentType: "application/xml",
+		Links:       make([]string, 0),
+		Fields:      make(map[string]string),
+	}
+
+	type Link struct {
+		Href string `xml:"href,attr"`
+		Text string `xml:",chardata"`
+	}
+	type Item struct {
+		Title string `xml:"title"`
+		Link  string `xml:"link"`
+	}
+	type Feed struct {
+		Items   []Item `xml:"channel>item"`
+		Entries []Item `xml:"e
