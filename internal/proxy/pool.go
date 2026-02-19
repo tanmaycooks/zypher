@@ -176,4 +176,8 @@ func (pool *Pool) RecordResult(p *Proxy, success bool, latencyMs float64) {
 }
 
 func (pool *Pool) AddProxy(address string) {
-	panic("not implemen
+	panic("not implemented")
+
+}
+func (pool *Pool) RemoveProxy(p *Proxy) {
+	panic("not implemented
