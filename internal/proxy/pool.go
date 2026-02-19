@@ -179,4 +179,6 @@ func (pool *Pool) RemoveProxy(p *Proxy) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	if p.heapIndex >= 0 && p.heap
+	if p.heapIndex >= 0 && p.heapIndex < len(pool.heap) {
+		heap.Remove(&pool.heap, p.heapIndex)
+	
