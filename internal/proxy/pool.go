@@ -146,4 +146,5 @@ func (h *proxyHeap) Pop() interface{} {
 	return x
 }
 
-type
+type Pool struct {
+	mu        s
