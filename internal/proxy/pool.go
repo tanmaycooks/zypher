@@ -147,4 +147,28 @@ func (h *proxyHeap) Pop() interface{} {
 }
 
 type Pool struct {
-	mu        s
+	mu        sync.Mutex
+	heap      proxyHeap
+	pickCount atomic.
+			Int64
+}
+
+func NewPool(addresses []string) *Pool {
+	pool := &Pool{
+		heap: make(proxyHeap, 0, len(addresses)),
+	}
+
+	for _, addr := range addresses {
+		pool.heap = append(pool.heap, NewProxy(addr))
+	}
+
+	heap.Init(&pool.heap)
+	return pool
+}
+
+func (pool *Pool) Pick() *Proxy {
+	panic("not implemented")
+
+}
+func (pool *Pool) RecordResult(p *Proxy, success bool, latencyMs float64) {
+	panic("not implement
