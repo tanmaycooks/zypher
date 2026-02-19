@@ -190,4 +190,6 @@ func (
 
 }
 func computeScore(successRate,
-	avgLatencyMs f
+	avgLatencyMs float64) float64 {
+	if avgLatencyMs <= 0 {
+		ret
