@@ -142,4 +142,8 @@ func (h *proxyHeap) Pop() interface{} {
 	x := old[n-1]
 	old[n-1] = nil
 	x.heapIndex = -1
-	
+	*h = old[:n-1]
+	return x
+}
+
+type
