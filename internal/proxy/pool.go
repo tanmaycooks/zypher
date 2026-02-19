@@ -171,4 +171,4 @@ func (pool *Pool) Pick() *Proxy {
 
 }
 func (pool *Pool) RecordResult(p *Proxy, success bool, latencyMs float64) {
-	panic("not
+	panic("not implement
