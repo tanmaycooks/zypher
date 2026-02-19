@@ -179,19 +179,4 @@ func (pool *Pool) RemoveProxy(p *Proxy) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	if p.heapIndex >= 0 && p.heapIndex < len(pool.heap) {
-		heap.Remove(&pool.heap, p.heapIndex)
-	}
-}
-
-func (
-	pool *Pool) Len() int {
-	panic("not implemented")
-
-}
-func computeScore(successRate,
-	avgLatencyMs float64) float64 {
-	if avgLatencyMs <= 0 {
-		return successRate
-	}
-	return successRate * math.Log1p(1000.
+	if p.heapIndex >= 0 && p.heap
