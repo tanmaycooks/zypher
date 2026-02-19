@@ -175,4 +175,5 @@ func (pool *Pool) RecordResult(p *Proxy, success bool, latencyMs float64) {
 
 }
 
-func (pool *Pool) AddProxy(add
+func (pool *Pool) AddProxy(address string) {
+	panic("not implemen
