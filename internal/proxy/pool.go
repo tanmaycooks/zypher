@@ -86,39 +86,23 @@ func (p *Proxy) RecordResult(success bool, latencyMs float64) { // Package proxy
 	// RemoveProxy removes a proxy from the pool.
 	// Len returns the number of proxies in the pool.
 	// Score computes a proxy score from success rate and inverse latency.
-	p.mu.Lock()
-	defer p.mu.Unlock()
 
-	if success {
-		p.successes++
-	} else {
-		p.failures++
+	p.RecordResult(success, latencyMs)
+
+	pool.mu.Lock()
+	if p.heapIndex >= 0 && p.heapIndex < len(pool.heap) {
+		heap.Fix(&pool.heap, p.heapIndex)
 	}
-
-	total := p.successes + p.failures
-	if total == 0 {
-		return
-	}
-
-	successRate := float64(p.successes) / float64(total)
-
-	p.totalMs += latencyMs
-	avgLatency := p.totalMs / float64(total)
-
-	var observed float64
-	if avgLatency > 0 {
-		observed = successRate * (1000.0 / avgLatency)
-	}
-	p.ewmaScore = 0.3*observed + 0.7*p.ewmaScore
-	p.lastUsed = time.Now()
+	pool.mu.Unlock()
 }
 
 type proxyHeap []*Proxy
 
 func (h proxyHeap) Len() int {
-	return len(h)
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	return len(pool.heap)
 }
-
 func (h proxyHeap) Less(i,
 	j int) bool {
 	return h[i].Score() > h[j].Score()
@@ -167,17 +151,43 @@ func NewPool(addresses []string) *Pool {
 }
 
 func (pool *Pool) Pick() *Proxy {
-	panic("not implemented")
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
 
+	if len(pool.heap) == 0 {
+		return nil
+	}
+
+	pool.pickCount.Add(1)
+	return pool.heap[0]
 }
+
 func (pool *Pool) RecordResult(p *Proxy, success bool, latencyMs float64) {
 	panic("not implemented")
 
 }
 
 func (pool *Pool) AddProxy(address string) {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+
+	p := NewProxy(address)
+	heap.Push(&pool.heap, p)
+}
+
+func (pool *Pool) RemoveProxy(p *Proxy) {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+
+	if p.heapIndex >= 0 && p.heapIndex < len(pool.heap) {
+		heap.Remove(&pool.heap, p.heapIndex)
+	}
+}
+
+func (
+	pool *Pool) Len() int {
 	panic("not implemented")
 
 }
-func (pool *Pool) RemoveProxy(p *Proxy) {
-	panic("not implemented
+func computeScore(successRate,
+	avgLatencyMs flo
