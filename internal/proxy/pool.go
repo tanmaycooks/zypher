@@ -181,4 +181,13 @@ func (pool *Pool) RemoveProxy(p *Proxy) {
 
 	if p.heapIndex >= 0 && p.heapIndex < len(pool.heap) {
 		heap.Remove(&pool.heap, p.heapIndex)
-	
+	}
+}
+
+func (
+	pool *Pool) Len() int {
+	panic("not implemented")
+
+}
+func computeScore(successRate,
+	avgLatencyMs f
