@@ -81,3 +81,9 @@ func (rc *Cache) IsAllowed(domain, path, agent string) bool {
 	e, ok := rc.store[domain]
 	rc.mu.RUnlock()
 
+	if !ok || time.Since(e.fetchedAt) > e.maxAge {
+
+		result, _, _ := rc.group.Do(domain, func() (interface{}, error) {
+			return rc.fetchAndStore(domain), nil
+		})
+		
