@@ -86,4 +86,18 @@ func (rc *Cache) IsAllowed(domain, path, agent string) bool {
 		result, _, _ := rc.group.Do(domain, func() (interface{}, error) {
 			return rc.fetchAndStore(domain), nil
 		})
-		
+		e = result.(*entry)
+	}
+
+	if e == nil || e.data == nil {
+		return true
+	}
+
+	return e.data.TestAgent(path, agent)
+}
+
+func (rc *Cache) fetchAndStore(domain string) *entry {
+	url := fmt.Sprintf("https://%s/robots.txt", domain)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cance
