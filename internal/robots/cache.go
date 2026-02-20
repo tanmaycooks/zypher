@@ -142,4 +142,12 @@ func (rc *Cache) fetchAndStore(domain string) *entry {
 func (rc *Cache) storeEntry(domain string, data *robotstxt.
 	RobotsData) *entry {
 	e := &entry{
-		data:      da
+		data:      data,
+		fetchedAt: time.Now(),
+		maxAge:    rc.maxAge,
+	}
+	rc.mu.Lock()
+	rc.store[domain] = e
+	rc.mu.Unlock()
+	return e
+}
