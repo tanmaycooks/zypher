@@ -100,4 +100,46 @@ func (rc *Cache) fetchAndStore(domain string) *entry {
 	url := fmt.Sprintf("https://%s/robots.txt", domain)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cance
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		rc.logger.Warn("failed to create robots.txt request",
+			"domain", domain, "error", err)
+		return rc.storeEntry(domain, nil)
+	}
+
+	resp, err := rc.client.Do(req)
+	if err != nil {
+		rc.logger.Warn("failed to fetch robots.txt",
+			"domain", domain, "error", err)
+		return rc.storeEntry(domain, nil)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		rc.logger.Info("robots.txt not found, allowing all",
+			"domain", domain, "status", resp.StatusCode)
+		return rc.storeEntry(domain, nil)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024))
+	if err != nil {
+		rc.logger.Warn("failed to read robots.txt body",
+			"domain", domain, "error", err)
+		return rc.storeEntry(domain, nil)
+	}
+
+	data, err := robotstxt.FromString(strings.TrimSpace(string(body)))
+	if err != nil {
+		rc.logger.Warn("failed to parse robots.txt",
+			"domain", domain, "error", err)
+		return rc.storeEntry(domain, nil)
+	}
+
+	return rc.storeEntry(domain, data)
+}
+func (rc *Cache) storeEntry(domain string, data *robotstxt.
+	RobotsData) *entry {
+	e := &entry{
+		data:      da
