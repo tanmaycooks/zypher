@@ -27,4 +27,23 @@ func TestProxyHeapPick(t *testing.T) {
 		t.Fatal("Pick() returned nil")
 	}
 
-	p1 := pool.Pick
+	p1 := pool.Pick()
+	pool.RecordResult(p1, true, 500.0)
+
+	p2 := pool.Pick()
+	if p2 == nil {
+		t.Fatal("Pick() returned nil after RecordResult")
+	}
+}
+
+func TestProxyHeapOrdering(t *testing.T) {
+	pool := NewPool([]string{
+		"slow:8080",
+		"fast:8080",
+		"medium:8080",
+	})
+
+	for i := 0; i < len(pool.heap); i++ {
+		p := pool.heap[i]
+		switch p.Address {
+		case "fast:8080"
