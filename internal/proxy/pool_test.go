@@ -77,3 +77,18 @@ func TestProxyPoolEmpty(t *testing.T) {
 }
 func BenchmarkProxyPickThroughput(b *testing.B) {
 	addrs := make([]string, 500)
+	for i := range addrs {
+		addrs[i] = "proxy" + string(rune(i)) + ":8080"
+	}
+	pool := NewPool(addrs)
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			p := pool.Pick()
+			if p != nil {
+				pool.RecordResult(p, true, 50.0)
+			}
+		}
+	})
+}
