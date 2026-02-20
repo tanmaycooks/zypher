@@ -5,31 +5,27 @@ import (
 )
 
 func TestProxyHeapPick(t *testing.T) {
-	pool := NewPool([]string{ // Pick should return the highest-scoring proxy
+	pool := NewPool([]string{
 		"proxy1:8080",
 		"proxy2:8080",
-		"proxy3:8080", // Record high latency for proxy1, making it less desirable
-
-		// picks best
-		// After enough results, a consistently faster proxy should rise to top
-
-		// Simulate: "fast" has low latency, "slow" has high
-
-		// Pick should return the fastest proxy
+		"proxy3:8080",
 	})
 
 	if pool.Len() != 3 {
 		t.Fatalf("expected 3 proxies, got %d", pool.Len())
 	}
 
+	// Pick should return the highest-scoring proxy
 	p := pool.Pick()
 	if p == nil {
 		t.Fatal("Pick() returned nil")
 	}
 
-	p1 := pool.Pick()
+	// Record high latency for proxy1, making it less desirable
+	p1 := pool.Pick() // picks best
 	pool.RecordResult(p1, true, 500.0)
 
+	// After enough results, a consistently faster proxy should rise to top
 	p2 := pool.Pick()
 	if p2 == nil {
 		t.Fatal("Pick() returned nil after RecordResult")
@@ -43,6 +39,7 @@ func TestProxyHeapOrdering(t *testing.T) {
 		"medium:8080",
 	})
 
+	// Simulate: "fast" has low latency, "slow" has high
 	for i := 0; i < len(pool.heap); i++ {
 		p := pool.heap[i]
 		switch p.Address {
@@ -61,6 +58,7 @@ func TestProxyHeapOrdering(t *testing.T) {
 		}
 	}
 
+	// Pick should return the fastest proxy
 	best := pool.Pick()
 	if best == nil {
 		t.Fatal("Pick() returned nil")
@@ -69,12 +67,14 @@ func TestProxyHeapOrdering(t *testing.T) {
 		t.Errorf("expected fast:8080 to be picked first, got %s", best.Address)
 	}
 }
+
 func TestProxyPoolEmpty(t *testing.T) {
 	pool := NewPool([]string{})
 	if pool.Pick() != nil {
 		t.Error("expected nil from empty pool")
 	}
 }
+
 func BenchmarkProxyPickThroughput(b *testing.B) {
 	addrs := make([]string, 500)
 	for i := range addrs {
