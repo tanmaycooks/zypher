@@ -46,4 +46,33 @@ func TestProxyHeapOrdering(t *testing.T) {
 	for i := 0; i < len(pool.heap); i++ {
 		p := pool.heap[i]
 		switch p.Address {
-		case "fast:8080"
+		case "fast:8080":
+			for j := 0; j < 10; j++ {
+				pool.RecordResult(p, true, 10.0)
+			}
+		case "medium:8080":
+			for j := 0; j < 10; j++ {
+				pool.RecordResult(p, true, 100.0)
+			}
+		case "slow:8080":
+			for j := 0; j < 10; j++ {
+				pool.RecordResult(p, true, 500.0)
+			}
+		}
+	}
+
+	best := pool.Pick()
+	if best == nil {
+		t.Fatal("Pick() returned nil")
+	}
+	if best.Address != "fast:8080" {
+		t.Errorf("expected fast:8080 to be picked first, got %s", best.Address)
+	}
+}
+func TestProxyPoolEmpty(t *testing.T) {
+	pool := NewPool([]string{})
+	if pool.Pick() != nil {
+		t.Error("expected nil from empty pool")
+	}
+}
+func Be
