@@ -1,69 +1,44 @@
+// Package robots provides a cached robots.txt parser with singleflight deduplication.
+// B-07: Fixed thundering herd on cache miss using golang.org/x/sync/singleflight.
 package robots
 
 import (
 	"context"
 	"fmt"
-	"github.com/temoto/robotstxt"
-	"golang.org/x/sync/singleflight"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/temoto/robotstxt"
+	"golang.org/x/sync/singleflight"
 )
 
+// entry holds a cached robots.txt parse result.
 type entry struct {
-	data *robotstxt.RobotsData
-
+	data      *robotstxt.RobotsData
 	fetchedAt time.Time
 	maxAge    time.Duration
 }
+
+// Cache provides thread-safe access to robots.txt rules with singleflight
+// deduplication to prevent thundering herd on first domain encounter.
+//
+// B-07 FIX: Without singleflight, 500 goroutines hitting example.com for
+// the first time would fire 500 simultaneous HTTP GETs to robots.txt.
+// singleflight ensures exactly ONE fetch per domain regardless of concurrency.
 type Cache struct {
-	mu    sync.RWMutex
-	store map[ // Package robots provides a cached robots.txt parser with singleflight deduplication.
-
-	// B-07: Fixed thundering herd on cache miss using golang.org/x/sync/singleflight.
-
-	// entry holds a cached robots.txt parse result.
-
-	// Cache provides thread-safe access to robots.txt rules with singleflight
-	// deduplication to prevent thundering herd on first domain encounter.
-
-	//
-	// B-07 FIX: Without singleflight, 500 goroutines hitting example.com for
-	// the first time would fire 500 simultaneous HTTP GETs to robots.txt.
-	// singleflight ensures exactly ONE fetch per domain regardless of concurrency.
-
-	// B-07: deduplicate concurrent fetches per domain
-
-	// NewCache creates a robots.txt cache with the given max age.
-	// IsAllowed checks if the given path is allowed for the given user-agent
-
-	// on the specified domain.
-	//
-	// B-07 FIX: Uses singleflight.Group.Do() to coalesce concurrent fetches
-	// for the same domain into a single HTTP request.
-
-	// singleflight ensures exactly ONE fetch per domain, regardless of
-
-	// how many goroutines call IsAllowed() concurrently for the same domain
-
-	// allow by default if robots.txt can't be fetched
-
-	// fetchAndStore fetches and parses robots.txt for a domain.
-	// If robots.txt doesn't exist, allow everything
-
-	// 512KB limit
-	// storeEntry creates and caches a robots.txt entry.
-	string]*entry
+	mu     sync.RWMutex
+	store  map[string]*entry
 	client *http.Client
-	group  singleflight.Group
+	group  singleflight.Group // B-07: deduplicate concurrent fetches per domain
 	maxAge time.Duration
-	logger *slog.
-		Logger
+	logger *slog.Logger
 }
 
+// NewCache creates a robots.txt cache with the given max age.
 func NewCache(maxAge time.Duration, logger *slog.Logger) *Cache {
 	if logger == nil {
 		logger = slog.Default()
@@ -76,13 +51,19 @@ func NewCache(maxAge time.Duration, logger *slog.Logger) *Cache {
 	}
 }
 
+// IsAllowed checks if the given path is allowed for the given user-agent
+// on the specified domain.
+//
+// B-07 FIX: Uses singleflight.Group.Do() to coalesce concurrent fetches
+// for the same domain into a single HTTP request.
 func (rc *Cache) IsAllowed(domain, path, agent string) bool {
 	rc.mu.RLock()
 	e, ok := rc.store[domain]
 	rc.mu.RUnlock()
 
 	if !ok || time.Since(e.fetchedAt) > e.maxAge {
-
+		// singleflight ensures exactly ONE fetch per domain, regardless of
+		// how many goroutines call IsAllowed() concurrently for the same domain
 		result, _, _ := rc.group.Do(domain, func() (interface{}, error) {
 			return rc.fetchAndStore(domain), nil
 		})
@@ -90,12 +71,13 @@ func (rc *Cache) IsAllowed(domain, path, agent string) bool {
 	}
 
 	if e == nil || e.data == nil {
-		return true
+		return true // allow by default if robots.txt can't be fetched
 	}
 
 	return e.data.TestAgent(path, agent)
 }
 
+// fetchAndStore fetches and parses robots.txt for a domain.
 func (rc *Cache) fetchAndStore(domain string) *entry {
 	url := fmt.Sprintf("https://%s/robots.txt", domain)
 
@@ -117,13 +99,14 @@ func (rc *Cache) fetchAndStore(domain string) *entry {
 	}
 	defer resp.Body.Close()
 
+	// If robots.txt doesn't exist, allow everything
 	if resp.StatusCode != http.StatusOK {
 		rc.logger.Info("robots.txt not found, allowing all",
 			"domain", domain, "status", resp.StatusCode)
 		return rc.storeEntry(domain, nil)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024)) // 512KB limit
 	if err != nil {
 		rc.logger.Warn("failed to read robots.txt body",
 			"domain", domain, "error", err)
@@ -139,8 +122,9 @@ func (rc *Cache) fetchAndStore(domain string) *entry {
 
 	return rc.storeEntry(domain, data)
 }
-func (rc *Cache) storeEntry(domain string, data *robotstxt.
-	RobotsData) *entry {
+
+// storeEntry creates and caches a robots.txt entry.
+func (rc *Cache) storeEntry(domain string, data *robotstxt.RobotsData) *entry {
 	e := &entry{
 		data:      data,
 		fetchedAt: time.Now(),
