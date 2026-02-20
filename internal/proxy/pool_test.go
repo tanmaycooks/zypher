@@ -75,4 +75,5 @@ func TestProxyPoolEmpty(t *testing.T) {
 		t.Error("expected nil from empty pool")
 	}
 }
-func Be
+func BenchmarkProxyPickThroughput(b *testing.B) {
+	addrs := make([]string, 500)
