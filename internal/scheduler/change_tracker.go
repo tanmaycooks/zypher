@@ -142,6 +142,13 @@ func (ct *ChangeTracker) RecordUnchanged(ctx context.Context, url string) error 
 		return nil
 	}
 
-	emaSeconds, _ := ")
+	emaSeconds, _ := strconv.ParseFloat(emaStr, 64)
 
+	newEMA := emaSeconds * 1.2
+	newEMA = math.Min(newEMA, maxInterval.Seconds())
+
+	return ct.rdb.Set(ctx, keyEMAInterval, fmt.Sprintf("%.0f", newEMA), maxInterval).Err()
 }
+func (
+	ct *ChangeTracker) GetNextCrawlTime(ctx context.Context, url string) (time.Time, error) {
+	keyLastChange := "recrawl:la
