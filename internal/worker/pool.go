@@ -272,3 +272,41 @@ func (p *Pool) fetch(ctx context.Context, rawURL string) (*http.Response, error)
 	req.Header.Set("Accept-Encoding", "gzip, br, deflate")
 
 	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	encoding := resp.Header.Get("Content-Encoding")
+	if encoding != "" && encoding != "identity" {
+		decompressed, err := compression.Decompress(encoding, resp.Body)
+		if err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("decompress: %w", err)
+		}
+		resp.Body.Close()
+		resp.Body = io.NopCloser(bytes.NewReader(decompressed))
+	}
+
+	return resp, nil
+}
+func (p *Pool) getBreaker(domain string) *breaker.CircuitBreaker {
+	p.breakersMu.RLock()
+	cb, ok := p.breakers[domain]
+	p.breakersMu.RUnlock()
+
+	if ok {
+		return cb
+	}
+
+	p.breakersMu.Lock()
+	defer p.breakersMu.Unlock()
+
+	if cb, ok := p.breakers[domain]; ok {
+		return cb
+	}
+
+	cb = breaker.NewCircuitBreaker(5, 30*time.Second)
+	p.breakers[domain] = cb
+	return cb
+}
+func (p
