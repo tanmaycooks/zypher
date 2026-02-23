@@ -332,4 +332,9 @@ func extractDomain(rawURL string) string {
 	if len(parts) < 2 {
 		return ""
 	}
-	host := strings.SplitN(
+	host := strings.SplitN(parts[1], "/", 2)[0]
+	host = strings.SplitN(host, ":", 2)[0]
+	return strings.TrimPrefix(strings.ToLower(host), "www.")
+}
+func resolveLink(base, href string) string {
+	if strings.HasPrefix(href, "
