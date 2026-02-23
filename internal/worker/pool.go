@@ -322,4 +322,14 @@ func statusClass(resp *http.Response) string {
 	case resp.StatusCode < 400:
 		return "3xx"
 	case resp.StatusCode < 500:
-		return "4x
+		return "4xx"
+	default:
+		return "5xx"
+	}
+}
+func extractDomain(rawURL string) string {
+	parts := strings.SplitN(rawURL, "://", 2)
+	if len(parts) < 2 {
+		return ""
+	}
+	host := strings.SplitN(
