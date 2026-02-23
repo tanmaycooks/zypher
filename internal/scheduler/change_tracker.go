@@ -85,4 +85,7 @@ func (ct *ChangeTracker) RecordChange(ctx context.Context,
 	// minInterval prevents re-crawling faster than every 5 minutes.
 	// maxInterval prevents intervals longer than 30 days.
 
-	// emaAlpha controls the smoothing factor of 
+	// emaAlpha controls the smoothing factor of the EMA.
+
+	// 0.3 means recent observations have more weight.
+	// Chang
