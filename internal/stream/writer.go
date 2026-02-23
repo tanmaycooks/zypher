@@ -104,4 +104,39 @@ func (w *Writer) flushLocked(ctx context.Context) error {
 	}
 
 	pipe := w.client.Pipeline()
-	for _, record :
+	for _, record := range w.buffer {
+		fields := map[string]interface{}{
+			"url":          record.URL,
+			"domain":       record.Domain,
+			"content_hash": record.ContentHash,
+			"status_code":  record.StatusCode,
+			"fetched_at":   record.FetchedAt.Unix(),
+			"body_size":    len(record.Body),
+		}
+
+		for k, v := range record.Fields {
+			fields["field_"+k] = v
+		}
+
+		pipe.XAdd(ctx, &redis.XAddArgs{
+			Stream: w.streamKey,
+			Values: fields,
+		})
+	}
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		w.logger.Error("failed to flush stream buffer",
+			"records", len(w.buffer), "error", err)
+		return fmt.Errorf("stream flush failed: %w", err)
+	}
+
+	w.logger.Info("stream buffer flushed",
+		"records", len(w.buffer), "stream", w.streamKey)
+
+	w.buffer = w.buffer[:0]
+	return nil
+}
+func (w *Writer) Len() int {
+	w.mu.Lock()
+	defer w.mu.Unlo
