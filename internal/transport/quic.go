@@ -43,4 +43,4 @@ func (t *MultiplexedTransport) RoundTrip(req *http.Request) (*http.Response, err
 	// Close terminates all QUIC connections.
 	host := req.URL.Hostname()
 
-	if
+	if capable, ok := t.h3capable.Load(host); ok && capable.(bool
