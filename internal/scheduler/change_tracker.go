@@ -151,4 +151,22 @@ func (ct *ChangeTracker) RecordUnchanged(ctx context.Context, url string) error 
 }
 func (
 	ct *ChangeTracker) GetNextCrawlTime(ctx context.Context, url string) (time.Time, error) {
-	keyLastChange := "recrawl:la
+	keyLastChange := "recrawl:last:" + url
+	keyEMAInterval := "recrawl:ema:" + url
+
+	lastChangeStr, err := ct.rdb.Get(ctx, keyLastChange).Result()
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	emaStr, err := ct.rdb.Get(ctx, keyEMAInterval).Result()
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	lastChangeUnix, _ := strconv.ParseInt(lastChangeStr, 10, 64)
+	emaSeconds, _ := strconv.ParseFloat(emaStr, 64)
+
+	nextCrawl := time.Unix(lastChangeUnix, 0).Add(time.Duration(emaSeconds) * time.Second)
+	return nextCrawl, nil
+}
