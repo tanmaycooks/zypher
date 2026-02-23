@@ -94,4 +94,13 @@ func (
 func (w *Writer) Flush(ctx context.
 	Context) error {
 	w.mu.Lock()
-	defer w.m
+	defer w.mu.Unlock()
+	return w.flushLocked(ctx)
+}
+
+func (w *Writer) flushLocked(ctx context.Context) error {
+	if len(w.buffer) == 0 {
+		return nil
+	}
+
+	pipe := 
