@@ -309,4 +309,18 @@ func (p *Pool) getBreaker(domain string) *breaker.CircuitBreaker {
 	p.breakers[domain] = cb
 	return cb
 }
-func (p
+func (p *Pool) Drain() {
+	p.wg.Wait()
+}
+func statusClass(resp *http.Response) string {
+	if resp == nil {
+		return "err"
+	}
+	switch {
+	case resp.StatusCode < 300:
+		return "2xx"
+	case resp.StatusCode < 400:
+		return "3xx"
+	case resp.StatusCode < 500:
+		return "4xx"
+	default:
