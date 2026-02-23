@@ -149,4 +149,4 @@ func (p *Pool) processURL(ctx context.Context, rawURL string) {
 	panic("not implemented")
 
 }
-func (p *Pool) fetch(ctx cont
+func (p *Pool) fetch(ctx context.Context, rawURL string) (*http.Response, error
