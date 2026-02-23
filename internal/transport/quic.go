@@ -43,4 +43,29 @@ func (t *MultiplexedTransport) RoundTrip(req *http.Request) (*http.Response, err
 	// Close terminates all QUIC connections.
 	host := req.URL.Hostname()
 
-	if capable, ok := t.h3capable.Load(host); ok && capable.(bool
+	if capable, ok := t.h3capable.Load(host); ok && capable.(bool) {
+		resp, err := t.h3.RoundTrip(req)
+		if err == nil {
+			return resp, nil
+		}
+
+		t.h3capable.Store(host, false)
+	}
+
+	resp, err := t.h1h2.RoundTrip(req)
+	if err != nil {
+		return resp, err
+	}
+
+	if altSvc := resp.Header.Get("Alt-Svc"); strings.Contains(altSvc, "h3") {
+		t.h3capable.Store(host, true)
+	}
+
+	return resp, nil
+}
+func (t *MultiplexedTransport) Close() error {
+	return t.h3.Close()
+}
+")
+
+}
