@@ -142,11 +142,32 @@ func NewPool(cfg PoolConfig, f *frontier.Frontier, d *dedup.DistributedFilter, r
 
 func (p *Pool) Run(ctx context.
 	Context) {
-	panic("not implemented")
+	p.logger.Info("worker pool started",
+		"min_concur", p.limiter.Ceiling(),
+		"batch_size", p.batchSize)
 
-}
-func (p *Pool) processURL(ctx context.Context, rawURL string) {
-	panic("not implemented")
+	for {
+		select {
+		case <-ctx.Done():
+			p.logger.Info("worker pool stopping, draining in-flight requests")
+			p.wg.Wait()
+			return
+		default:
+		}
 
-}
-func (p *Pool) fetch(ctx context.Context, rawURL string) (*http.Response, error
+		urls, err := p.frontier.PopBatch(ctx, int64(p.batchSize))
+		if err != nil {
+			p.logger.Error("frontier pop failed", "error", err)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		if len(urls) == 0 {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		metrics.FrontierSize.Set(float64(len(urls)))
+
+		for _, url := range urls {
+			p.wg.
