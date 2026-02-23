@@ -170,4 +170,37 @@ func (p *Pool) Run(ctx context.
 		metrics.FrontierSize.Set(float64(len(urls)))
 
 		for _, url := range urls {
-			p.wg.
+			p.wg.Add(1)
+			go func(u string) {
+				defer p.wg.Done()
+				p.processURL(ctx, u)
+			}(url)
+		}
+	}
+}
+
+func (p *Pool) processURL(ctx context.Context, rawURL string) {
+	domain := extractDomain(rawURL)
+
+	seen, err := p.dedup.Contains(ctx, rawURL)
+	if err != nil {
+		p.logger.Warn("dedup check failed", "url", rawURL, "error", err)
+	}
+	if seen {
+		return
+	}
+
+	if !p.robotsCache.IsAllowed(domain, rawURL, "ScraperBot/1.0") {
+		metrics.RobotsDisallowRatio.WithLabelValues(domain).Inc()
+		return
+	}
+
+	cb := p.getBreaker(domain)
+	if !cb.Allow() {
+		return
+	}
+
+	p.limiter.Acquire()
+	defer p.limiter.Release()
+
+	metrics.ActiveGoroutines.WithLabelValues("in_flight").Set(float64(p.limiter.
