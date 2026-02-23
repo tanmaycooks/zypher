@@ -203,4 +203,72 @@ func (p *Pool) processURL(ctx context.Context, rawURL string) {
 	p.limiter.Acquire()
 	defer p.limiter.Release()
 
-	metrics.ActiveGoroutines.WithLabelValues("in_flight").Set(float64(p.limiter.
+	metrics.ActiveGoroutines.WithLabelValues("in_flight").Set(float64(p.limiter.InFlight()))
+	metrics.ActiveGoroutines.WithLabelValues("ceiling").Set(float64(p.limiter.Ceiling()))
+
+	start := time.Now()
+	resp, fetchErr := p.fetch(ctx, rawURL)
+	duration := time.Since(start)
+
+	metrics.FetchDuration.WithLabelValues(domain,
+		statusClass(resp)).Observe(duration.Seconds())
+
+	if fetchErr != nil {
+		cb.Record(false)
+		p.limiter.OnFailure()
+		p.logger.Warn("fetch failed", "url", rawURL, "error", fetchErr)
+		return
+	}
+
+	cb.Record(true)
+	p.limiter.OnSuccess()
+
+	if err := p.dedup.Insert(ctx, rawURL); err != nil {
+		p.logger.Warn("dedup insert failed", "url", rawURL, "error", err)
+	}
+
+	contentType := parser.DetectContentType(resp)
+	parsed, err := p.parser.Dispatch(contentType, resp.Body, rawURL)
+	resp.Body.Close()
+
+	if err != nil {
+		p.logger.Warn("parse failed", "url", rawURL, "error", err)
+		return
+	}
+
+	contentHash := fmt.Sprintf("%x", xxhash.Sum64String(parsed.Text))
+
+	writeErr := p.writer.Write(ctx, stream.Record{
+		URL:         rawURL,
+		Domain:      domain,
+		ContentHash: contentHash,
+		StatusCode:  resp.StatusCode,
+		FetchedAt:   time.Now(),
+		Fields:      parsed.Fields,
+	})
+	if writeErr != nil {
+		p.logger.Error("stream write failed", "url", rawURL, "error", writeErr)
+	}
+
+	for _, link := range parsed.Links {
+		absLink := resolveLink(rawURL, link)
+		if absLink != "" {
+			p.frontier.Push(ctx, absLink, 0.5, time.Time{})
+		}
+	}
+
+	metrics.PagesPerMinute.Inc()
+}
+
+func (p *Pool) fetch(ctx context.Context, rawURL string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", antidetect.Pick())
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
+	req.Header.Set("Accept-Encoding", "gzip, br, deflate")
+
+	resp, err := p.httpClient.Do(req)
