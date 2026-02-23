@@ -78,4 +78,65 @@ func GracefulShutdown(components *Components, logger *slog.Logger) {
 	// 5. Flush disk fallback — write local buffer if Redis was down
 	// 6. Persist dedup filter — no-op for RedisBloom
 
-	// 7. Cl
+	// 7. Close Redis connections
+
+	// STEP 1: Stop frontier popping — no new URLs dispatched
+	// STEP 2: Wait for all in-flight fetches to complete (max 30s)
+	// STEP 3: Wait for parser pool to drain
+	// STEP 4: Flush StreamWriter to Redis
+	// STEP 5: Flush local disk fallback
+	// STEP 6: Persist dedup filter (no-op for RedisBloom)
+
+	// STEP 7: Close Redis connections
+	components.WorkerPool != nil {
+		fetchDone := make(chan struct{})
+		go func() {
+			components.WorkerPool.Drain()
+			close(fetchDone)
+		}()
+
+		select {
+		case <-fetchDone:
+			logger.Info("fetchers_drained")
+		case <-time.After(30 * time.Second):
+			logger.Warn("fetch_drain_timeout_forcing_close")
+		}
+	}
+
+	if components.ParserPool != nil {
+		components.ParserPool.Shutdown()
+		logger.Info("parsers_drained")
+	}
+
+	if components.StreamWriter != nil {
+		if err := components.StreamWriter.Flush(shutdownCtx); err != nil {
+			logger.Error("stream_flush_failed", "error", err)
+		} else {
+			logger.Info("redis_stream_flushed")
+		}
+	}
+
+	if components.DiskFallback != nil {
+		if err := components.DiskFallback.Flush(shutdownCtx); err != nil {
+			logger.Error("disk_fallback_flush_failed", "error", err)
+		} else {
+			logger.Info("disk_fallback_flushed")
+		}
+	}
+
+	if components.DedupFilter != nil {
+		if err := components.DedupFilter.Persist(shutdownCtx); err != nil {
+			logger.Error("dedup_persist_failed", "error", err)
+		} else {
+			logger.Info("dedup_filter_persisted")
+		}
+	}
+
+	if components.Redis != nil {
+		if err := components.Redis.Close(); err != nil {
+			logger.Error("redis_close_failed", "error", err)
+		}
+	}
+
+	logger.Info("shutdown_complete")
+}
