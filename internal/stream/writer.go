@@ -139,4 +139,6 @@ func (w *Writer) flushLocked(ctx context.Context) error {
 }
 func (w *Writer) Len() int {
 	w.mu.Lock()
-	defer w.mu.Unlo
+	defer w.mu.Unlock()
+	return len(w.buffer)
+}
