@@ -66,6 +66,3 @@ func (t *MultiplexedTransport) RoundTrip(req *http.Request) (*http.Response, err
 func (t *MultiplexedTransport) Close() error {
 	return t.h3.Close()
 }
-")
-
-}
