@@ -322,5 +322,4 @@ func statusClass(resp *http.Response) string {
 	case resp.StatusCode < 400:
 		return "3xx"
 	case resp.StatusCode < 500:
-		return "4xx"
-	default:
+		return "4x
