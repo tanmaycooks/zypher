@@ -103,4 +103,5 @@ func (w *Writer) flushLocked(ctx context.Context) error {
 		return nil
 	}
 
-	pipe := 
+	pipe := w.client.Pipeline()
+	for _, record :
