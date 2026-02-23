@@ -18,4 +18,21 @@ func NewHTTPTransport(dnsCache *dns.
 		// NewHTTPTransport creates a production-ready HTTP transport with:
 
 		// - DNS cache integration for <1ms DNS lookups
-		// - Connection pooling tuned
+		// - Connection pooling tuned for high throughput
+		// - TLS 1.2+ enforcement
+		// we handle decompression with pooled readers
+		500,
+		MaxConnsPerHost:       500,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
+		ForceAttemptHTTP2:     true,
+		DisableCompression:    false,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}
+
+	return transport
+}
