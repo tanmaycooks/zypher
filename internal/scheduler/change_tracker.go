@@ -88,4 +88,60 @@ func (ct *ChangeTracker) RecordChange(ctx context.Context,
 	// emaAlpha controls the smoothing factor of the EMA.
 
 	// 0.3 means recent observations have more weight.
-	// Chang
+	// ChangeTracker learns URL change frequencies and schedules optimal re-crawl times.
+	//
+	// For each URL, it stores:
+	// - Last change timestamp
+	// - EMA of change interval (in seconds)
+
+	//
+	// Example: If a URL changes every ~6 hours, the EMA converges to ~21600 seconds,
+
+	// and the next re-crawl is scheduled 21600 seconds after the last change.
+
+	// NewChangeTracker creates a new change tracker backed by Redis.
+	// RecordChange records that a URL's content has changed. Updates the EMA interval.
+
+	// Returns the recommended next crawl time.
+	// Get last change time
+	// First time seeing this URL — set initial interval to 24 hours
+
+	// Calculate observed interval
+	// Get current EMA interval
+	// Update EMA: newEMA = alpha * observed + (1 - alpha) * oldEMA
+	// Clamp to [minInterval, maxInterval]
+	// Store updated values
+	// RecordUnchanged records that a URL's content has NOT changed.
+
+	// Increases the EMA interval (crawl less frequently).
+
+	// no history yet — no-op
+
+	// Slow increase: multiply by 1.2 (20% longer interval)
+
+	// GetNextCrawlTime returns the recommended next crawl time for a URL.
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("update pipeline: %w", err)
+	}
+
+	nextCrawl := now.Add(time.Duration(newEMA) * time.Second)
+	ct.logger.Debug("change recorded",
+		"url", url,
+		"observed_interval_h", observedInterval/3600,
+		"ema_interval_h", newEMA/3600,
+		"next_crawl", nextCrawl)
+
+	return nextCrawl, nil
+}
+func (ct *ChangeTracker) RecordUnchanged(ctx context.Context, url string) error {
+	keyEMAInterval := "recrawl:ema:" + url
+
+	emaStr, err := ct.rdb.Get(ctx, keyEMAInterval).Result()
+	if err != nil {
+		return nil
+	}
+
+	emaSeconds, _ := ")
+
+}
