@@ -80,4 +80,18 @@ func (
 	w.mu.Lock()
 	w.buffer = append(w.buffer, record)
 
-	if len(w.buffer) >= w
+	if len(w.buffer) >= w.bufferSize {
+
+		err := w.flushLocked(ctx)
+		w.mu.Unlock()
+		return err
+	}
+
+	w.mu.Unlock()
+	return nil
+}
+
+func (w *Writer) Flush(ctx context.
+	Context) error {
+	w.mu.Lock()
+	defer w.m
