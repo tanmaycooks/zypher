@@ -1,60 +1,39 @@
+// Package stream provides a buffered writer for Redis Streams output.
+// B-08: Fixed missing sync import and data race on buffer — Flush() now
+// executes inside the mutex lock to prevent concurrent buffer access.
 package stream
 
 import (
 	"context"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"log/slog"
-	"sync"
+	"sync" // B-08: was missing from import block
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
+// Record represents a scraped data record to be written to a Redis Stream.
 type Record struct {
 	URL         string
 	Domain      string
 	ContentHash string
-	Body        []byte // Package stream provides a buffered writer for Redis Streams output.
-
-	// B-08: Fixed missing sync import and data race on buffer — Flush() now
-
-	// executes inside the mutex lock to prevent concurrent buffer access.
-
-	// B-08: was missing from import block
-	// Record represents a scraped data record to be written to a Redis Stream.
-
-	// extracted structured fields
-	// Writer provides buffered writes to a Redis Stream.
-
-	// Records are accumulated in a buffer and flushed when the buffer is full
-
-	// or when Flush() is called explicitly.
-	//
-	// B-08 FIX: The original code used sync.Mutex but didn't import "sync",
-	// causing a compile error. Additionally, Flush() was called outside the
-
-	// mutex lock in Write(), creating a race condition where concurrent
-	// goroutines could corrupt the buffer during flush.
-	// B-08: sync import was missing
-	// NewWriter creates a new buffered stream writer.
-	// Write adds a record to the buffer and flushes if the buffer is full.
-
-	// B-08 FIX: Flush is called INSIDE the mutex lock to prevent race conditions.
-
-	// B-08 FIX: Flush inside the lock — prevents concurrent buffer access
-
-	// Flush writes all buffered records to the Redis Stream.
-	// Thread-safe — acquires the mutex before flushing.
-	// flushLocked performs the actual flush. Must be called with mu held.
-
-	// Add extracted fields
-	// Reset buffer
-	// Len returns the number of records currently in the buffer.
-	StatusCode int
-	FetchedAt  time.Time
-	Fields     map[string]string
+	Body        []byte
+	StatusCode  int
+	FetchedAt   time.Time
+	Fields      map[string]string // extracted structured fields
 }
+
+// Writer provides buffered writes to a Redis Stream.
+// Records are accumulated in a buffer and flushed when the buffer is full
+// or when Flush() is called explicitly.
+//
+// B-08 FIX: The original code used sync.Mutex but didn't import "sync",
+// causing a compile error. Additionally, Flush() was called outside the
+// mutex lock in Write(), creating a race condition where concurrent
+// goroutines could corrupt the buffer during flush.
 type Writer struct {
-	mu         sync.Mutex
+	mu         sync.Mutex // B-08: sync import was missing
 	client     *redis.Client
 	streamKey  string
 	buffer     []Record
@@ -62,6 +41,7 @@ type Writer struct {
 	logger     *slog.Logger
 }
 
+// NewWriter creates a new buffered stream writer.
 func NewWriter(client *redis.Client, streamKey string, bufferSize int, logger *slog.Logger) *Writer {
 	if logger == nil {
 		logger = slog.Default()
@@ -75,13 +55,14 @@ func NewWriter(client *redis.Client, streamKey string, bufferSize int, logger *s
 	}
 }
 
-func (
-	w *Writer) Write(ctx context.Context, record Record) error {
+// Write adds a record to the buffer and flushes if the buffer is full.
+// B-08 FIX: Flush is called INSIDE the mutex lock to prevent race conditions.
+func (w *Writer) Write(ctx context.Context, record Record) error {
 	w.mu.Lock()
 	w.buffer = append(w.buffer, record)
 
 	if len(w.buffer) >= w.bufferSize {
-
+		// B-08 FIX: Flush inside the lock — prevents concurrent buffer access
 		err := w.flushLocked(ctx)
 		w.mu.Unlock()
 		return err
@@ -91,13 +72,15 @@ func (
 	return nil
 }
 
-func (w *Writer) Flush(ctx context.
-	Context) error {
+// Flush writes all buffered records to the Redis Stream.
+// Thread-safe — acquires the mutex before flushing.
+func (w *Writer) Flush(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.flushLocked(ctx)
 }
 
+// flushLocked performs the actual flush. Must be called with mu held.
 func (w *Writer) flushLocked(ctx context.Context) error {
 	if len(w.buffer) == 0 {
 		return nil
@@ -113,7 +96,7 @@ func (w *Writer) flushLocked(ctx context.Context) error {
 			"fetched_at":   record.FetchedAt.Unix(),
 			"body_size":    len(record.Body),
 		}
-
+		// Add extracted fields
 		for k, v := range record.Fields {
 			fields["field_"+k] = v
 		}
@@ -134,9 +117,12 @@ func (w *Writer) flushLocked(ctx context.Context) error {
 	w.logger.Info("stream buffer flushed",
 		"records", len(w.buffer), "stream", w.streamKey)
 
+	// Reset buffer
 	w.buffer = w.buffer[:0]
 	return nil
 }
+
+// Len returns the number of records currently in the buffer.
 func (w *Writer) Len() int {
 	w.mu.Lock()
 	defer w.mu.Unlock()
