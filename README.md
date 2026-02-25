@@ -16,7 +16,7 @@ Zypher integrates an advanced microservice-esque observability stack alongside a
 
 ```mermaid
 graph TD
-    subgraph Core System [Zypher Scraper Engine]
+    subgraph CoreSystem [Zypher Scraper Engine]
         A[Frontier Controller] -->|Dispatches URLs| B(Worker Pool)
         B -->|Fetch Data| C{Adaptive Rate Limiter}
         B -->|Check Faults| D{Circuit Breaker}
@@ -26,7 +26,7 @@ graph TD
         F -->|Parsed Rules| G(Data Extractor)
     end
 
-    subgraph Infrastructure & Observability [Docker Compose Stack]
+    subgraph Infrastructure [Docker Compose Stack]
         G -.->|Saves Artifacts / HTML| H[(MinIO <br> Object Storage)]
         G -.->|Caches / Bloom Filters| I[(Redis Stack <br> + Sentinel HA)]
         A -.->|State Tracking| I
@@ -39,8 +39,8 @@ graph TD
         L -.-> M
     end
     
-    style Core System fill:#2b2d42,stroke:#edf2f4,stroke-width:2px,color:#edf2f4
-    style Infrastructure & Observability fill:#8d99ae,stroke:#edf2f4,stroke-width:2px,color:#edf2f4
+    style CoreSystem fill:#2b2d42,stroke:#edf2f4,stroke-width:2px,color:#edf2f4
+    style Infrastructure fill:#8d99ae,stroke:#edf2f4,stroke-width:2px,color:#edf2f4
 ```
 
 ## 🔄 Execution Flow
