@@ -133,4 +133,4 @@ zypher/
 This project is licensed under the [MIT License](LICENSE).
 
 ---
-*Built with 💻 by **Tanmay Yadav**.*
+*Built by **Tanmay Yadav**.*
